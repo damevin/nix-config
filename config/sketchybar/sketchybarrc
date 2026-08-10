@@ -1,0 +1,183 @@
+#!/usr/bin/env bash
+
+export PATH="/run/current-system/sw/bin:$HOME/.nix-profile/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+CONFIG_DIR="$HOME/.config/sketchybar"
+PLUGIN_DIR="$CONFIG_DIR/plugins"
+FONT="Ioskeley Mono Term"
+
+sketchybar --default \
+  icon.font="$FONT:Regular:13.0" \
+  label.font="$FONT:Regular:13.0"
+##### Bar Appearance #####
+# Configuring the general appearance of the bar.
+# These are only some of the options available. For all options see:
+# https://felixkratz.github.io/SketchyBar/config/bar
+# If you are looking for other colors, see the color picker:
+# https://felixkratz.github.io/SketchyBar/config/tricks#color-picker
+
+sketchybar --bar position=top height=40 blur_radius=30 color=0x40000000
+
+##### Changing Defaults #####
+# We now change some default values, which are applied to all further items.
+# For a full list of all available item properties see:
+# https://felixkratz.github.io/SketchyBar/config/items
+
+default=(
+  padding_left=5
+  padding_right=5
+  icon.color=0xffffffff
+  label.color=0xffffffff
+  icon.padding_left=4
+  icon.padding_right=4
+  label.padding_left=4
+  label.padding_right=4
+)
+sketchybar --default "${default[@]}"
+
+##### AeroSpace Workspaces #####
+
+sketchybar --add event aerospace_workspace_change
+
+aerospace list-workspaces --all \
+  --format '%{workspace}|%{monitor-appkit-nsscreen-screens-id}' |
+  while IFS='|' read -r SID DISPLAY; do
+
+    sketchybar --add item "space.$SID" left
+
+    sketchybar --set "space.$SID" \
+      display="$DISPLAY" \
+      label="$SID" \
+      label.font="Ioskeley Mono Term:Regular:13.0" \
+      label.padding_left=7 \
+      label.padding_right=7 \
+      label.y_offset=0 \
+      icon.drawing=off \
+      background.color=0xff101315 \
+      background.corner_radius=6 \
+      background.height=24 \
+      background.drawing=off \
+      click_script="aerospace workspace $SID" \
+      script="$PLUGIN_DIR/aerospace.sh $SID"
+    sketchybar --subscribe "space.$SID" aerospace_workspace_change
+  done
+
+##### Front App #####
+
+sketchybar \
+  --add item front_app center \
+  --set front_app \
+  icon.drawing=off \
+  label.font="$FONT:Regular:13.0" \
+  label.color=0xff78858c \
+  label.max_chars=30 \
+  script="$PLUGIN_DIR/front_app.sh" \
+  --subscribe front_app front_app_switched
+
+##### Battery #####
+
+sketchybar \
+  --add item battery right \
+  --set battery \
+  icon.drawing=off \
+  label.font="$FONT:Regular:13.0" \
+  update_freq=60 \
+  script="$PLUGIN_DIR/battery.sh" \
+  --subscribe battery power_source_change
+
+##### Clock #####
+
+sketchybar \
+  --add item clock right \
+  --set clock \
+  icon.drawing=off \
+  label.font="$FONT:Regular:13.0" \
+  update_freq=10 \
+  script="$PLUGIN_DIR/clock.sh"
+
+#### Stats#####
+
+sketchybar \
+  --add item stats right \
+  --set stats \
+  display="1,2" \
+  icon="●" \
+  icon.font="$FONT:Regular:9.0" \
+  label.font="$FONT:Regular:13.0" \
+  update_freq=5 \
+  script="$PLUGIN_DIR/stats.sh" \
+  click_script="launchctl kickstart gui/$(id -u)/com.raphael.sketchybar.networkquality"
+
+### Slack notifications ####
+sketchybar \
+  --add item slack right \
+  --set slack \
+  drawing=off \
+  icon.drawing=off \
+  label.drawing=off \
+  image="app.Slack" \
+  image.drawing=on \
+  image.scale=0.55 \
+  update_freq=5 \
+  script="$PLUGIN_DIR/slack.sh" \
+  click_script="open -a Slack"
+
+##### GitHub CI #####
+
+sketchybar \
+  --add item github_ci right \
+  --set github_ci \
+  drawing=off \
+  icon.drawing=off \
+  label.font="Ioskeley Mono Term:Regular:13.0" \
+  update_freq=30 \
+  script="$PLUGIN_DIR/github_ci.sh" \
+  click_script="$PLUGIN_DIR/github_ci_open.sh"
+
+sketchybar --trigger aerospace_workspace_change \
+  FOCUSED_WORKSPACE="$(aerospace list-workspaces --focused)
+
+
+"FONT="Ioskeley Mono Term"
+
+sketchybar --default \
+  padding_left=4 \
+  padding_right=4 \
+  icon.drawing=off \
+  label.font="$FONT:Regular:13.0" \
+  label.color=0xffd8e1e6 \
+  label.padding_left=6 \
+  label.padding_right=6 \
+  background.drawing=off
+
+##### Adding Left Items #####
+# We add some regular items to the left side of the bar, where
+# only the properties deviating from the current defaults need to be set
+
+sketchybar --add item chevron left \
+  --set chevron icon= label.drawing=off \
+  --add item front_app left \
+  --set front_app icon.drawing=off script="$PLUGIN_DIR/front_app.sh" \
+  --subscribe front_app front_app_switched
+
+##### Adding Right Items #####
+# In the same way as the left items we can add items to the right side.
+# Additional position (e.g. center) are available, see:
+# https://felixkratz.github.io/SketchyBar/config/items#adding-items-to-sketchybar
+
+# Some items refresh on a fixed cycle, e.g. the clock runs its script once
+# every 10s. Other items respond to events they subscribe to, e.g. the
+# volume.sh script is only executed once an actual change in system audio
+# volume is registered. More info about the event system can be found here:
+# https://felixkratz.github.io/SketchyBar/config/events
+
+sketchybar --add item clock right \
+  --set clock update_freq=10 icon= script="$PLUGIN_DIR/clock.sh" \
+  --add item volume right \
+  --set volume script="$PLUGIN_DIR/volume.sh" \
+  --subscribe volume volume_change \
+  --add item battery right \
+  --set battery update_freq=120 script="$PLUGIN_DIR/battery.sh" \
+  --subscribe battery system_woke power_source_change
+
+##### Force all scripts to run the first time (never do this in a script) #####
+sketchybar --update

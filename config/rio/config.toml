@@ -1,0 +1,6 @@
+# See the full configuration reference: https://rioterm.com/docs/config
+theme = "main-dark"
+
+env-vars = [
+  "TERMINFO_DIRS=/run/current-system/sw/share/terminfo:/usr/share/terminfo"
+]
