@@ -1,0 +1,123 @@
+// Zed settings
+//
+// For information on how to configure Zed, see the Zed
+// documentation: https://zed.dev/docs/configuring-zed
+//
+// To see all of Zed's default settings without changing your
+// custom settings, run `zed: open default settings` from the
+// command palette (cmd-shift-p / ctrl-shift-p)
+{
+  "ssh_connections": [
+    {
+      "host": "51.75.250.88",
+      "username": "root",
+      "port": 2222,
+      "args": [],
+      "projects": [
+        {
+          "paths": [
+            "/root"
+          ]
+        }
+      ]
+    }
+  ],
+  "vim_mode": true,
+  "theme": "Vercel Dark",
+  "cli_default_open_behavior": "new_window",
+  "agent_servers": {
+    "codex-acp": {
+      "type": "registry",
+    },
+  },
+  "outline_panel": {
+    "dock": "right",
+  },
+  "collaboration_panel": {
+    "dock": "right",
+  },
+  "agent": {
+    "dock": "left",
+    "favorite_models": [],
+    "model_parameters": [],
+  },
+  "autosave": {
+    "after_delay": {
+      "milliseconds": 1000,
+    },
+  },
+  "icon_theme": {
+    "mode": "dark",
+    "light": "Catppuccin Frappé",
+    "dark": "Catppuccin Macchiato",
+  },
+  "ui_font_size": 16,
+  // "format_on_save": "on",
+  "tabs": {
+    "close_position": "left",
+  },
+  "buffer_line_height": "standard",
+  "ui_font_weight": 400.0,
+  "ui_font_family": "Ioskeley Mono Term",
+  "window_decorations": "client",
+  "bindings": {
+    "cmd-shift-a": "editor::SortLinesCaseInsensitive",
+  },
+  // "languages": {
+  //   "Svelte": {
+  //     "formatter": [],
+  //     "language_servers": [
+  //       "typescript-language-server",
+  //       "svelte-language-server",
+  //       "!vtsls",
+  //     ],
+  //     "code_actions_on_format": {
+  //       "source.fixAll.eslint": true,
+  //       "source.organizeImports": true,
+  //     },
+  //   },
+  // },
+  "hide_mouse": "on_typing",
+  "project_panel": {
+    "sort_order": "unicode",
+    "sort_mode": "directories_first",
+    "hide_hidden": false,
+    "hide_root": true,
+    "indent_guides": {
+      "show": "never",
+    },
+    "sticky_scroll": true,
+    "git_status_indicator": false,
+    "diagnostic_badges": false,
+    "scrollbar": {
+      "horizontal_scroll": true,
+    },
+    "bold_folder_labels": true,
+    "starts_open": true,
+    "auto_fold_dirs": true,
+    "indent_size": 10.0,
+    "default_width": 232.0,
+    "dock": "right",
+  },
+  "cursor_shape": "block",
+  "git_panel": {
+    "tree_view": true,
+    "collapse_untracked_diff": false,
+    "sort_by_path": false,
+    "dock": "right",
+  },
+  "buffer_font_family": "Ioskeley Mono Term",
+  "buffer_font_size": 16,
+  "git": {
+    "git_gutter": "tracked_files",
+    "inline_blame": {
+      "enabled": true,
+      "delay_ms": 500,
+      "show_commit_summary": true,
+    },
+    "branch_picker": {
+      "show_author_name": true,
+    },
+    "hunk_style": "staged_hollow",
+  },
+}

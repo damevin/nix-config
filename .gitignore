@@ -1,0 +1,22 @@
+# macOS
+.DS_Store
+
+# Nix build outputs
+result
+result-*
+
+# Temporary migration / Home Manager backups
+*.backup
+*.pre-nix
+*.bak
+
+# Secrets / environment files
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Local editor junk
+*.swp
+*.swo

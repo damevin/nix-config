@@ -2,5 +2,5 @@
 theme = "main-dark"
 
 env-vars = [
-  "TERMINFO_DIRS=/run/current-system/sw/share/terminfo:/usr/share/terminfo"
+  "TERMINFO_DIRS=/run/current-system/sw/share/terminfo:/usr/share/terminfo",
 ]
