@@ -4,3 +4,10 @@ theme = "main-dark"
 env-vars = [
   "TERMINFO_DIRS=/run/current-system/sw/share/terminfo:/usr/share/terminfo",
 ]
+
+[navigation]
+mode = "Tab"
+max-tab-width = 180
+
+[title]
+content = "{{ RELATIVE_PATH }} · {{ PROGRAM }}"

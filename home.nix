@@ -157,6 +157,15 @@ exec ${pkgs.secretspec}/bin/secretspec \
           source "$NVM_DIR/bash_completion"
             fi
             '';
+    initContent = ''
+      function rio_title() {
+        print -Pn "\e]0;%1~\a"
+      }
+
+    autoload -Uz add-zsh-hook
+      add-zsh-hook precmd rio_title
+      add-zsh-hook chpwd rio_title
+      '';
   };
 
   programs.fzf = {
