@@ -11,3 +11,7 @@ max-tab-width = 280
 
 [title]
 content = "{{ TITLE || RELATIVE_PATH }}"
+
+[shell]
+program = "/bin/zsh"
+args = []
