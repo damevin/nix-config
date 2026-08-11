@@ -8,10 +8,16 @@
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     neru.url = "github:y3owk1n/neru";
   };
-  outputs = { nixpkgs, nix-darwin, home-manager, neru, ... }:
-  {
-    darwinConfigurations."lvs-mac-cf7426" = 
-      nix-darwin.lib.darwinSystem {
+  outputs =
+    {
+      nixpkgs,
+      nix-darwin,
+      home-manager,
+      neru,
+      ...
+    }:
+    {
+      darwinConfigurations."lvs-mac-cf7426" = nix-darwin.lib.darwinSystem {
         modules = [
           ./darwin.nix
 
@@ -19,7 +25,7 @@
             nixpkgs.overlays = [ neru.overlays.default ];
           }
 
-        neru.darwinModules.default
+          neru.darwinModules.default
           home-manager.darwinModules.home-manager
           {
             home-manager.useGlobalPkgs = true;
@@ -28,5 +34,5 @@
           }
         ];
       };
-  };
+    };
 }
