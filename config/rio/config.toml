@@ -7,7 +7,7 @@ env-vars = [
 
 [navigation]
 mode = "Tab"
-max-tab-width = 180
+max-tab-width = 280
 
 [title]
-content = "{{ RELATIVE_PATH }} · {{ PROGRAM }}"
+content = "{{ TITLE || RELATIVE_PATH }}"

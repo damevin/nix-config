@@ -89,6 +89,7 @@ exec ${pkgs.secretspec}/bin/secretspec \
     config.lib.file.mkOutOfStoreSymlink
     "${config.home.homeDirectory}/nix-config/config/zed/tasks.json";
 
+  home.file."hushlogin".text = "";
   home.sessionPath = [
     "$HOME/.local/bin"
       "$HOME/.rbenv/bin"
