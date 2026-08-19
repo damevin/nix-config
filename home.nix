@@ -56,9 +56,12 @@ in
     protonPassCli
     opencodeWithSecrets
     nixfmt
+    postgresql
     nil
     statix
     deadnix
+    pnpm
+    nodejs_24
   ];
 
   home.file.".config/nvim".source =
@@ -87,8 +90,7 @@ in
 
   home.sessionPath = [
     "$HOME/.local/bin"
-    "$HOME/.rbenv/bin"
-    "$HOME/.bun/bin"
+    "$HOME/.kimi-code/bin"
   ];
 
   programs.gh = {
@@ -142,17 +144,11 @@ in
       enable = true;
     };
     profileExtra = ''
-        if [[ -x /opt/homebrew/bin/brew ]]; then
-          eval "$(/opt/homebrew/bin/brew shellenv)"
-            fi
-            export NVM_DIR="$HOME/.nvm";
-      if [[ -s "$NVM_DIR/nvm.sh" ]]; then
-        source "$NVM_DIR/nvm.sh"
-          fi
-          if [[ -s "$NVM_DIR/bash_completion" ]]; then
-            source "$NVM_DIR/bash_completion"
-              fi
+      if [[ -x /opt/homebrew/bin/brew ]]; then
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+      fi
     '';
+
     initContent = ''
         function rio_title() {
           print -Pn "\e]0;%1~\a"
@@ -161,6 +157,10 @@ in
       autoload -Uz add-zsh-hook
         add-zsh-hook precmd rio_title
         add-zsh-hook chpwd rio_title
+
+      if command -v wt >/dev/null 2>&1; then
+        eval "$(command wt config shell init zsh)"
+      fi
     '';
   };
 
@@ -180,6 +180,13 @@ in
       enter_accept = true;
     };
   };
+
+  programs.direnv = {
+    enable = true;
+    enableZshIntegration = true;
+    nix-direnv.enable = true;
+  };
+
   programs.aerospace = {
     enable = true;
     launchd.enable = true;
