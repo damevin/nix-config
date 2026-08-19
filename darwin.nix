@@ -3,7 +3,7 @@
 let
   # Rio 0.5.10 has a macOS sandbox-incompatible test...
   rio = pkgs.rio.overrideAttrs (old: {
-    checkFlags = (old.checkFlags or []) ++ [
+    checkFlags = (old.checkFlags or [ ]) ++ [
       "--skip=tests::drives_a_real_shell_and_reads_cells"
     ];
   });
@@ -14,17 +14,18 @@ in
   users.users.raphaeldamevin = {
     home = "/Users/raphaeldamevin";
   };
-  nixpkgs.config.allowUnfreePredicate = pkg:
-  builtins.elem (pkgs.lib.getName pkg) [
-    "raycast"
-    "obsidian"
-  ];
+  nixpkgs.config.allowUnfreePredicate =
+    pkg:
+    builtins.elem (pkgs.lib.getName pkg) [
+      "raycast"
+      "obsidian"
+    ];
   programs.zsh.enable = true;
   environment.systemPackages = with pkgs; [
     cowsay
-      tree
-      rio
-      rio.terminfo
+    tree
+    rio
+    rio.terminfo
   ];
   services.tailscale.enable = true;
   environment.etc."resolver/ts.net".enable = false;
