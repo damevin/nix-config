@@ -32,6 +32,8 @@ in
     bat
     fd
     neovim
+    nodejs
+    pnpm
     ripgrep
     television
     coreutils
@@ -90,6 +92,10 @@ in
     "$HOME/.rbenv/bin"
     "$HOME/.bun/bin"
   ];
+
+  programs.git.settings = {
+    push.autoSetupRemote = true;
+  };
 
   programs.gh = {
     enable = true;
