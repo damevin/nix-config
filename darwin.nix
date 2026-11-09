@@ -23,6 +23,8 @@ in
   programs.zsh.enable = true;
   environment.systemPackages = with pkgs; [
     cowsay
+    (callPackage ./pkgs/herdr-app.nix { })
+    (callPackage ./pkgs/magpie.nix { })
     tree
     rio
     rio.terminfo

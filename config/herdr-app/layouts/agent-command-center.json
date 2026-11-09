@@ -1,0 +1,340 @@
+{
+  "id": "root",
+  "type": "row",
+  "children": [
+    {
+      "id": "sidebar",
+      "type": "column",
+      "children": [
+        {
+          "id": "brand",
+          "type": "column",
+          "children": [],
+          "size": {
+            "px": 30
+          },
+          "window_drag": true
+        },
+        {
+          "id": "sidebar-lists",
+          "type": "column",
+          "children": [
+            {
+              "id": "spaces",
+              "type": "block",
+              "content": {
+                "mod": "profile-pictures"
+              },
+              "size": {
+                "weight": 1
+              },
+              "min": 90,
+              "children": null
+            },
+            {
+              "id": "agents",
+              "type": "block",
+              "content": {
+                "mod": "agents"
+              },
+              "size": {
+                "weight": 1
+              },
+              "min": 90,
+              "children": null
+            }
+          ]
+        },
+        {
+          "id": "sidebar-footer",
+          "type": "block",
+          "content": {
+            "mod": "workspace-chrome",
+            "props": {
+              "footer": true
+            }
+          },
+          "size": {
+            "px": 69
+          },
+          "children": null
+        }
+      ],
+      "size": {
+        "px": 252
+      },
+      "min": 44,
+      "max": 480,
+      "background": "chrome",
+      "resizable": false
+    },
+    {
+      "id": "work",
+      "type": "column",
+      "children": [
+        {
+          "id": "tabs",
+          "type": "block",
+          "content": {
+            "mod": "acc-tabs"
+          },
+          "window_drag": true,
+          "size": {
+            "px": 42
+          },
+          "children": null
+        },
+        {
+          "id": "work-body",
+          "type": "row",
+          "children": [
+            {
+              "id": "center",
+              "type": "column",
+              "children": [
+                {
+                  "id": "main",
+                  "type": "block",
+                  "content": {
+                    "tab": "active",
+                    "pane": {
+                      "header": {
+                        "content": {
+                          "mod": "pane"
+                        },
+                        "reveal": "always",
+                        "height": 30,
+                        "position": "top"
+                      },
+                      "background": "background",
+                      "border": {
+                        "width": 1,
+                        "color": "border"
+                      },
+                      "focus": {
+                        "width": 1,
+                        "color": "accent"
+                      },
+                      "radius": 10,
+                      "gap": 8,
+                      "lone": true
+                    }
+                  },
+                  "children": null
+                }
+              ],
+              "gap": 8
+            },
+            {
+              "id": "panel",
+              "type": "column",
+              "children": [
+                {
+                  "id": "panel-body",
+                  "type": "stack",
+                  "children": [
+                    {
+                      "id": "files",
+                      "type": "block",
+                      "content": {
+                        "mod": "files"
+                      },
+                      "children": null
+                    },
+                    {
+                      "id": "changes",
+                      "type": "block",
+                      "content": {
+                        "mod": "changes"
+                      },
+                      "children": null
+                    }
+                  ],
+                  "active": "files"
+                }
+              ],
+              "size": {
+                "px": 368
+              },
+              "min": 280,
+              "max": 900,
+              "hidden": true,
+              "border": {
+                "width": 1,
+                "color": "border"
+              },
+              "radius": 10
+            },
+            {
+              "id": "prs",
+              "type": "block",
+              "content": {
+                "mod": "acc-review",
+                "props": {
+                  "mode": "mine"
+                }
+              },
+              "size": {
+                "px": 440
+              },
+              "min": 320,
+              "max": 900,
+              "hidden": true,
+              "border": {
+                "width": 1,
+                "color": "border"
+              },
+              "radius": 10,
+              "children": null
+            },
+            {
+              "id": "routing",
+              "type": "block",
+              "content": {
+                "mod": "acc-routing"
+              },
+              "size": {
+                "px": 440
+              },
+              "min": 320,
+              "max": 900,
+              "hidden": true,
+              "border": {
+                "width": 1,
+                "color": "border"
+              },
+              "radius": 10,
+              "children": null
+            },
+            {
+              "id": "today",
+              "type": "block",
+              "content": {
+                "mod": "acc-today"
+              },
+              "size": {
+                "px": 400
+              },
+              "min": 300,
+              "max": 800,
+              "hidden": true,
+              "border": {
+                "width": 1,
+                "color": "border"
+              },
+              "radius": 10,
+              "children": null
+            },
+            {
+              "id": "automation",
+              "type": "block",
+              "content": {
+                "mod": "acc-automation"
+              },
+              "size": {
+                "px": 420
+              },
+              "min": 300,
+              "max": 800,
+              "hidden": true,
+              "border": {
+                "width": 1,
+                "color": "border"
+              },
+              "radius": 10,
+              "children": null
+            },
+            {
+              "id": "review",
+              "type": "block",
+              "hidden": true,
+              "size": {
+                "px": 480
+              },
+              "min": 340,
+              "max": 1000,
+              "radius": 10,
+              "border": {
+                "width": 1,
+                "color": "border"
+              },
+              "content": {
+                "mod": "acc-review"
+              }
+            },
+            {
+              "id": "break",
+              "type": "block",
+              "hidden": true,
+              "size": {
+                "px": 400
+              },
+              "min": 320,
+              "max": 700,
+              "radius": 10,
+              "border": {
+                "width": 1,
+                "color": "border"
+              },
+              "content": {
+                "mod": "acc-break"
+              }
+            }
+          ],
+          "padding": 8,
+          "gap": 8
+        },
+        {
+          "id": "status-row",
+          "type": "row",
+          "children": [
+            {
+              "id": "status",
+              "type": "block",
+              "content": {
+                "mod": "workspace-status"
+              },
+              "size": {
+                "weight": 1
+              },
+              "children": null
+            },
+            {
+              "id": "usage-limits",
+              "type": "block",
+              "content": {
+                "mod": "usage-limits"
+              },
+              "size": {
+                "weight": 2.200000047683716
+              },
+              "min": 130,
+              "children": null
+            }
+          ],
+          "size": {
+            "px": 28
+          },
+          "resizable": false
+        }
+      ],
+      "resizable": false
+    }
+  ],
+  "background": "canvas",
+  "theme": "graphite",
+  "font_size": 13,
+  "terminal_padding": [
+    10,
+    10
+  ],
+  "divider": {
+    "width": 1,
+    "color": "border"
+  },
+  "titlebar": "none",
+  "traffic_lights": [
+    12,
+    9
+  ]
+}

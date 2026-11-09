@@ -1,0 +1,6 @@
+{
+  "programs": {
+    "omp": { "name": "OMP", "tile": "#6d5efc", "color": "#ffffff", "run": ["omp"] },
+    "omp-resume": { "name": "OMP (resume)", "tile": "#6d5efc", "color": "#ffffff", "run": ["omp", "--resume"] }
+  }
+}
