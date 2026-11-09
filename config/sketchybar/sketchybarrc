@@ -15,7 +15,7 @@ sketchybar --default \
 # If you are looking for other colors, see the color picker:
 # https://felixkratz.github.io/SketchyBar/config/tricks#color-picker
 
-sketchybar --bar position=top height=40 blur_radius=30 color=0x40000000
+sketchybar --bar position=top topmost=off height=40 blur_radius=30 color=0x40000000
 
 ##### Changing Defaults #####
 # We now change some default values, which are applied to all further items.
@@ -133,5 +133,4 @@ sketchybar \
   script="$PLUGIN_DIR/github_ci.sh" \
   click_script="$PLUGIN_DIR/github_ci_open.sh"
 
-sketchybar --trigger aerospace_workspace_change \
-  FOCUSED_WORKSPACE="$(aerospace list-workspaces --focused)
+"$PLUGIN_DIR/aerospace-workspace-change.sh"

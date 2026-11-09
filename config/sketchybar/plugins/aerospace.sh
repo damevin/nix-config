@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 WORKSPACE="$1"
+FOCUSED_WORKSPACE="$(aerospace list-workspaces --focused)"
 
 CYAN=0xff31c5ed
 MUTED=0xff78858c

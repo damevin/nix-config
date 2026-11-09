@@ -15,3 +15,11 @@ content = "{{ TITLE || RELATIVE_PATH }}"
 [shell]
 program = "/bin/zsh"
 args = []
+
+[bindings]
+keys = [
+  { key = "d", with = "control | shift", action = "SplitRight" },
+  { key = "d", with = "control | shift | alt", action = "SplitDown" },
+  { key = "]", with = "super", action = "SelectNextSplit" },
+  { key = "[", with = "super", action = "SelectPrevSplit" },
+]
