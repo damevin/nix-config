@@ -163,6 +163,27 @@ is directly editing the Git repository.
 
 No Nix rebuild is needed when changing those files.
 
+### Tern
+
+The ACC configuration lives in `config/tern/acc`. Its toolbar opens panels with
+an initial width, then leaves moving, resizing, and closing to Tern. Clicking a
+visible panel's toolbar button closes it; a panel in another tab is revealed in
+that tab. There is no panel-count limit or automatic rearrangement.
+
+Markdown reports open in a dedicated tab; **Open beside** creates an explicit
+split. Projects opens by default when repositories are registered and remembers
+an explicit hide or show. It starts compact, keeps the user's layout within a
+tab, and follows tab and session changes at its current width. Closing its tab
+or session brings it back in the shown tab. The pinned Overseer source is patched
+by `config/tern/overseer-free-panels.patch` through `home.nix`; recheck that patch
+when updating Overseer.
+The toolbar keeps aligned icons and labels with a single flat hover/active fill;
+notification dots, playback marks, review-count badges, and tooltips stay out of it.
+Vertical tabs use 12px outer margins and 32px rows. The avatar, session selector,
+and add button sit together above the list and follow the sidebar's native width.
+Right-click **+** opens the native Terminal/Browser/Note/etc. picker below that
+header; a normal click keeps Tern's new-terminal behavior.
+
 ---
 
 # Install on a new Mac

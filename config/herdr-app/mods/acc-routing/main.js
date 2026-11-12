@@ -7,7 +7,24 @@ const BASE = "http://127.0.0.1:3425";
 const now = () => performance.now();
 const find = (n, id) => (n?.id === id ? n : (n?.children ?? []).map((c) => find(c, id)).find(Boolean) ?? null);
 const MAX_AGENTS = 4, MAX_PROVIDERS = 6, KEEP = 40;
-const AW = 100, HW = 84, AH = 46, PH = 42, HH = 60, PAD = 14, TOP = 44;
+const AW = 118, HW = 84, AH = 46, PH = 42, HH = 60, PAD = 14, TOP = 92, GRAPH_H = 170;
+const ACTIVE_MS = 90000, MAX_TASKS = 10;
+// One slim row per finished request from magpie's routing log (it writes a request once it ends).
+const SLIM = "{id,time,agent,session,asked:.model,group:(.group.ref // null),provider,served:((((.tries // [])|last)|.served?) // .served),tries:((.tries // [])|length),status,ms,tokens,out,ttft}";
+// Output speed after the first token; null when the stream was too short to say.
+const rate = (x) => (x.out && x.ms - (x.ttft ?? 0) > 300 ? Math.round(x.out / ((x.ms - (x.ttft ?? 0)) / 1000)) : null);
+const SESSIONS = `find "$HOME/.omp/agent/sessions" -name '*.jsonl' -mtime -2 | while IFS= read -r f; do head -n 2 "$f" | jq -c -s --arg f "$f" '{f:$f,title:(.[0].title // ""),id:(.[1].id // null),parent:(.[1].parentSession // null),cwd:(.[1].cwd // "")}' 2>/dev/null; done`;
+const at = (s) => Date.parse(String(s).replace(/(\.\d{3})\d+/, "$1"));
+const tok = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : `${n ?? 0}`);
+const secs = (ms) => `${((ms ?? 0) / 1000).toFixed(1)}s`;
+const base = (p) => String(p ?? "").split("/").filter(Boolean).pop() ?? "";
+const idOfFile = (p) => String(p ?? "").match(/_([0-9a-f-]{36})\.jsonl$/)?.[1] ?? null;
+const MAGPIE = "/run/current-system/sw/bin/magpie", MODE_GROUP = "omp";
+const MODES = [
+  { id: "group/auto", label: "Auto", hint: "classifier" },
+  { id: "group/heavy", label: "Max", hint: "Opus · Astra" },
+  { id: "group/eco", label: "Eco", hint: "Sol · Sonnet · Luna" },
+];
 
 export default class Routing extends View {
   init(_props, cx) {
@@ -20,6 +37,121 @@ export default class Routing extends View {
     this.cursor = null; this.offline = false; this.alive = true; this.shown = false; this.playing = new Set();
     cx.timer.every(33, (cx) => this.frame(cx));
     cx.spawn(async (cx) => this.feed(cx));
+    this.mode = null; this.pending = null;
+    cx.spawn(async (cx) => this.modeLoop(cx));
+    this.rows = []; this.sess = new Map(); this.sessAt = 0;
+    cx.spawn(async (cx) => this.taskLoop(cx));
+  }
+
+  async taskLoop(cx) {
+    while (this.alive) {
+      if (this.visible()) {
+        try {
+          const r = await exec("sh", ["-c", `f="$HOME/.config/magpie/routing/$(date +%F).jsonl"; [ -f "$f" ] && tail -n 250 "$f" | jq -c '${SLIM}'`], { timeout: 8000 });
+          this.rows = r.stdout.split("\n").filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } })
+            .filter((x) => x.agent !== "magpie");
+          const unknown = this.rows.some((x) => x.session && !this.sess.has(x.session));
+          if ((unknown && Date.now() - this.sessAt > 15000) || Date.now() - this.sessAt > 60000) await this.loadSessions();
+          cx.notify();
+        } catch {}
+      }
+      await exec("sleep", ["3"]);
+    }
+  }
+
+  async loadSessions() {
+    this.sessAt = Date.now();
+    const r = await exec("sh", ["-c", SESSIONS], { timeout: 20000 });
+    for (const l of r.stdout.split("\n")) { try { const s = JSON.parse(l); if (s.id) this.sess.set(s.id, s); } catch {} }
+  }
+
+  // The root omp session a request belongs to, and the subagent name when it came from one.
+  taskOf(x) {
+    let s = this.sess.get(x.session);
+    // No session file: omp's side calls (titles, thinking-level judge) or a client like curl. One bucket per agent.
+    if (!s) return { key: `aux:${x.agent}`, title: x.agent === "omp" ? "omp · side calls (titles, classifier)" : `${x.agent} · no session`, sub: null };
+    const sub = s.parent ? base(s.f).replace(/\.jsonl$/, "") : null;
+    for (let i = 0; s?.parent && i < 4; i++) { const p = this.sess.get(idOfFile(s.parent)); if (!p) break; s = p; }
+    return { key: s.id, title: s.title || base(s.cwd) || s.id.slice(0, 8), sub };
+  }
+
+  tasks() {
+    const m = new Map();
+    for (const x of this.rows) {
+      const k = this.taskOf(x);
+      const T = m.get(k.key) ?? { key: k.key, title: k.title, agent: x.agent, last: null, lastAt: 0, n: 0, subs: new Map() };
+      m.set(k.key, T);
+      const when = at(x.time) + (x.ms ?? 0);
+      T.n++; if (when > T.lastAt) T.lastAt = when; if (!T.title) T.title = k.title;
+      if (k.sub) { const S = T.subs.get(k.sub) ?? { name: k.sub, n: 0 }; S.n++; S.last = x; S.lastAt = when; T.subs.set(k.sub, S); }
+      else T.last = x;
+    }
+    return [...m.values()].sort((a, b) => b.lastAt - a.lastAt).slice(0, MAX_TASKS);
+  }
+
+  agentTask(agent) {
+    const T = this.tasks().find((x) => x.agent === agent && !x.key.startsWith("aux:") && Date.now() - x.lastAt < 5 * 60000);
+    return T?.title ?? null;
+  }
+
+  reqLine(t, x) {
+    const err = x.status >= 400;
+    return div().flex().flex_row().items_center().gap(5).min_w(0).text_size(10.5)
+      .child(div().text_color(t.muted).flex_none().child("→"))
+      .child(div().px(5).rounded(4).bg(t.surface).text_color(t.muted).flex_none().child(x.group ?? x.asked ?? "?"))
+      .child(div().text_color(err ? RED : t.foreground).flex_none().child(x.provider ?? "?"))
+      .child(div().text_color(t.muted).truncate().min_w(0).flex_1().child(x.served ?? ""))
+      .child(div().text_color(t.muted).flex_none().child([err ? `${x.status}` : null, x.tries > 1 ? `${x.tries} tries` : null, secs(x.ms), tok(x.tokens), rate(x) ? `${rate(x)} tok/s` : null].filter(Boolean).join(" · ")));
+  }
+
+  taskTree(t) {
+    const list = this.tasks(), nowMs = Date.now();
+    const rows = list.map((T, i) => {
+      const active = nowMs - T.lastAt < ACTIVE_MS, err = T.last?.status >= 400;
+      const dot = err ? RED : active ? t.ansi3 : t.ansi2;
+      const subs = [...T.subs.values()].sort((a, b) => b.lastAt - a.lastAt);
+      return div().id(`rt-task-${i}`).flex().flex_col().gap(3).py(7).border_b(1).border_color(t.border)
+        .child(div().flex().flex_row().items_center().gap(6).min_w(0)
+          .child(div().size(7).rounded(4).bg(dot).flex_none())
+          .child(div().text_size(12).font_semibold().text_color(t.foreground).truncate().min_w(0).flex_1().child(T.title ?? "unknown session"))
+          .child(div().text_size(10).text_color(t.muted).flex_none().child(`${T.agent} · ${T.n} req · ${new Date(T.lastAt).toTimeString().slice(0, 8)}`)))
+        .when(Boolean(T.last), (el) => el.child(div().pl(13).child(this.reqLine(t, T.last))))
+        .children(subs.slice(0, 4).map((S, j) => div().pl(13).flex().flex_col().gap(2)
+          .child(div().flex().flex_row().gap(5).text_size(11).min_w(0)
+            .child(div().text_color(t.muted).flex_none().child(j === Math.min(subs.length, 4) - 1 ? "└" : "├"))
+            .child(div().text_color(t.foreground).truncate().min_w(0).child(S.name))
+            .child(div().text_color(t.muted).flex_none().child(`${S.n} req`)))
+          .child(div().pl(14).child(this.reqLine(t, S.last)))))
+        .when(subs.length > 4, (el) => el.child(div().pl(13).text_size(10.5).text_color(t.muted).child(`+${subs.length - 4} subagents`)));
+    });
+    return div().id("rt-tasks").absolute().left(PAD).right(PAD).top(TOP + GRAPH_H + 4).bottom(0).flex().flex_col()
+      .child(div().text_size(10).font_semibold().text_color(t.muted).pb(2).border_b(1).border_color(t.border).child(`TASKS · ${list.filter((T) => nowMs - T.lastAt < ACTIVE_MS).length} active`))
+      .child(div().id("rt-tasks-scroll").flex_1().min_h(0).overflow_y_scrollbar().children(rows.length ? rows : [div().py(8).text_size(11).text_color(t.muted).child("No requests today.")]));
+  }
+
+  async readMode() {
+    const r = await exec(MAGPIE, ["group", MODE_GROUP], { timeout: 8000 });
+    const line = r.stdout.split("\n").find((l) => l.includes("●"));
+    return line?.match(/group\/[\w-]+/)?.[0] ?? null;
+  }
+
+  async modeLoop(cx) {
+    while (this.alive) {
+      if (this.visible() && !this.pending) {
+        try { const m = await this.readMode(); if (m !== this.mode) { this.mode = m; cx.notify(); } } catch {}
+      }
+      await exec("sleep", ["4"]);
+    }
+  }
+
+  async pick(id, cx) {
+    if (this.pending || id === this.mode) return;
+    this.pending = id; cx.notify();
+    try {
+      await exec(MAGPIE, ["group", "pick", MODE_GROUP, id], { timeout: 15000 });
+      this.mode = (await this.readMode()) ?? this.mode;
+    } catch {}
+    this.pending = null; cx.notify();
   }
 
   async close() { this.alive = false; }
@@ -241,7 +373,7 @@ export default class Routing extends View {
   }
 
   layoutGeo() {
-    const z = settings().zoom || 1, W = this.size.width / z, H = this.size.height / z, ag = this.agents, pr = this.providers;
+    const z = settings().zoom || 1, W = this.size.width / z, H = Math.min(this.size.height / z, TOP + GRAPH_H), ag = this.agents, pr = this.providers;
     const pw = Math.max(80, Math.min(150, W - 2 * PAD - AW - HW - 80)), gap = Math.max(24, (W - 2 * PAD - AW - HW - pw) / 2);
     const ax = PAD, hx = ax + AW + gap, px = hx + HW + gap, cy = TOP + (H - TOP - 14) / 2;
     const stack = (n, h, g) => Array.from({ length: n }, (_, i) => cy - (n * h + (n - 1) * g) / 2 + i * (h + g));
@@ -267,6 +399,16 @@ export default class Routing extends View {
     root.child(div().absolute().left(PAD).top(12).text_size(12).font_semibold().text_color(t.foreground).child("Routing"))
       .child(div().absolute().right(PAD).top(13).text_size(11).text_color(this.offline ? t.blocked : t.muted)
         .child(this.offline ? "gateway offline" : live ? `${live} in flight` : "idle"));
+    const bw = (this.size.width / (settings().zoom || 1) - 2 * PAD - 12) / MODES.length;
+    MODES.forEach((m, i) => {
+      const on = (this.pending ?? this.mode) === m.id, wait = this.pending === m.id;
+      root.child(div().id(`rt-mode-${i}`).absolute().left(PAD + i * (bw + 8)).top(36).w(bw).h(44).py(6).rounded(8)
+        .border(1).border_color(on ? t.foreground : t.border).bg(on ? t.surface : t.chrome)
+        .flex().flex_col().items_center().justify_center().gap(3).cursor_pointer()
+        .hover((s) => s.bg(t.surface)).on_click((_e, cx) => this.pick(m.id, cx))
+        .child(div().text_size(12).font_semibold().text_color(on ? t.foreground : t.muted).child(wait ? `${m.label}…` : m.label))
+        .child(div().text_size(9.5).text_color(t.muted).child(m.hint)));
+    });
 
     const out = [];
     for (const [key, p] of g.wires) {
@@ -279,10 +421,10 @@ export default class Routing extends View {
     g.ays.forEach((y, i) => {
       const id = this.agents[i], k = `a:${id}`, col = hueOf(id, this.given);
       const tk = this.ticks.get(k), s = tk && tNow - tk < 400 ? 1 + .04 * Math.sin(Math.PI * (tNow - tk) / 400) : 1;
-      const n = [...this.routes.values()].filter((r) => r.agent === id && !r.done).length;
+      const n = [...this.routes.values()].filter((r) => r.agent === id && !r.done).length, task = this.agentTask(id);
       root.child(this.card(t, g.ax - AW * (s - 1) / 2, y - AH * (s - 1) / 2, AW * s, AH * s, [
-        div().flex().items_center().gap(5).max_w(AW - 10).child(div().size(7).rounded(4).bg(col).flex_none()).child(div().text_size(13).font_semibold().text_color(t.foreground).truncate().child(id)),
-        div().text_size(11).text_color(t.muted).child(n ? `${n} live` : "idle"),
+        div().flex().items_center().gap(5).max_w(AW - 10).child(div().size(7).rounded(4).bg(col).flex_none()).child(div().text_size(13).font_semibold().text_color(t.foreground).truncate().child(n ? `${id} · ${n}` : id)),
+        div().text_size(10.5).text_color(t.muted).max_w(AW - 10).truncate().child(task ?? "idle"),
       ]));
     });
     const tk = this.ticks.get("hub"), hs = tk && tNow - tk < 400 ? 1 + .04 * Math.sin(Math.PI * (tNow - tk) / 400) : 1;
@@ -304,6 +446,7 @@ export default class Routing extends View {
     });
 
     if (!this.agents.length && !this.offline) root.child(div().absolute().left(PAD).right(PAD).top(TOP + 4).text_size(11).text_color(t.muted).child("No request yet. Send one through magpie and it flies here."));
+    root.child(this.taskTree(t));
 
     for (const d of this.dots) {
       if (!d.visible) continue;

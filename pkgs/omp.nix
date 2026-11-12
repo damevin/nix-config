@@ -1,11 +1,11 @@
 { lib, stdenvNoCC, fetchurl }:
 stdenvNoCC.mkDerivation rec {
   pname = "omp";
-  version = "18.18.3";
+  version = "18.18.6";
 
   src = fetchurl {
     url = "https://github.com/can1357/oh-my-pi/releases/download/v${version}/omp-darwin-arm64";
-    sha256 = "87e8e593046dfb1047e359ad845648ffc8bda91aa59a9785690d5107f562c32d";
+    hash = "sha256-7S5j60OIjrdssUCbJFsdtFV8lN+tUtxUXJqsoB686C0=";
   };
 
   dontUnpack = true;

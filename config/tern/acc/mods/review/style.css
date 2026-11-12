@@ -1,0 +1,398 @@
+/* Pull requests and Review panels (acc.prs, acc.review): herdr's cards, stack
+   trail, chips and entrance motion on Tern's tokens. */
+
+.sf-main[data-surface='plugin.acc.prs'],
+.sf-main[data-surface='plugin.acc.review'] {
+	padding: 0;
+	gap: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+[data-role='acc.review.root'] {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0;
+}
+
+[data-role='acc.review.top'] {
+	height: 44px;
+	flex: none;
+	padding: 0 14px;
+	border-bottom: 1px solid var(--l2);
+}
+[data-role='acc.review.name'] {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--t1);
+}
+
+[data-role='acc.review.body'] {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	gap: 0;
+}
+[data-role='acc.review.list'] {
+	padding: 10px 0 12px;
+	gap: 0;
+}
+
+/* Cards: rise in, one after the other, and lift their ring on hover. */
+[data-role='acc.review.card'] {
+	margin: 0 10px 8px;
+	padding: 12px;
+	gap: 8px;
+	border-radius: 10px;
+	background: var(--card);
+	border: 1px solid var(--l2);
+	transition: border-color 140ms ease, background 140ms ease;
+	animation: acc-review-rise 260ms ease-out both;
+}
+[data-role='acc.review.card']:hover {
+	border-color: var(--l3);
+}
+[data-role='acc.review.placeholder'] {
+	margin: 0 10px 8px;
+	padding: 12px;
+	gap: 8px;
+	border-radius: 10px;
+	background: var(--card);
+	border: 1px solid var(--l2);
+	opacity: 0.7;
+}
+[data-role='acc.review.stack'] {
+	margin: 0 10px 8px;
+	border-radius: 10px;
+	background: var(--card);
+	border: 1px solid var(--l2);
+	overflow: hidden;
+	gap: 0;
+	animation: acc-review-rise 260ms ease-out both;
+}
+[data-role='acc.review.list'] > :nth-child(2) { animation-delay: 35ms; }
+[data-role='acc.review.list'] > :nth-child(3) { animation-delay: 70ms; }
+[data-role='acc.review.list'] > :nth-child(4) { animation-delay: 105ms; }
+[data-role='acc.review.list'] > :nth-child(5) { animation-delay: 140ms; }
+[data-role='acc.review.list'] > :nth-child(6) { animation-delay: 175ms; }
+[data-role='acc.review.list'] > :nth-child(7) { animation-delay: 210ms; }
+[data-role='acc.review.list'] > :nth-child(8) { animation-delay: 245ms; }
+[data-role='acc.review.list'] > :nth-child(n+9) { animation-delay: 280ms; }
+
+@keyframes acc-review-rise {
+	from { opacity: 0; transform: translateY(8px); }
+	to { opacity: 1; transform: none; }
+}
+
+[data-role='acc.review.title'] {
+	font-size: 13px;
+	font-weight: 600;
+	line-height: 1.4;
+	color: var(--t1);
+}
+[data-role='acc.review.kicker'] {
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	color: var(--t4);
+	flex: none;
+}
+[data-role='acc.review.size'] {
+	flex: none;
+}
+[data-role='acc.review.chips'] {
+	gap: 6px;
+}
+
+/* Added and removed lines, as one bar. */
+[data-role='acc.review.bar'] {
+	display: flex;
+	width: 44px;
+	height: 4px;
+	border-radius: 2px;
+	overflow: hidden;
+	background: var(--raise);
+	flex: none;
+}
+[data-role='acc.review.bar'].wide { width: 60px; }
+[data-role='acc.review.bar-add'] { height: 4px; background: var(--ok); }
+[data-role='acc.review.bar-del'] { height: 4px; background: var(--bad); }
+
+/* The agent working on the PR's branch. */
+[data-role='acc.review.agent'] {
+	height: 18px;
+	padding: 0 7px;
+	border-radius: 9px;
+	background: var(--raise);
+	border: 1px solid var(--raise);
+	font-size: 10.5px;
+	font-weight: 600;
+	flex: none;
+	transition: border-color 140ms ease;
+}
+[data-role='acc.review.agent'][data-tone='warning'] { border-color: var(--warn); }
+[data-role='acc.review.agent']:hover { border-color: var(--tc, var(--l3)); }
+
+/* Stacks: a rail of nodes beside each PR, newest on top. */
+[data-role='acc.review.stack-head'] {
+	height: 30px;
+	padding: 0 12px;
+	border-bottom: 1px solid var(--l2);
+	flex: none;
+}
+[data-role='acc.review.stack-row'] {
+	padding: 0 12px;
+	transition: background 140ms ease;
+}
+[data-role='acc.review.stack-row']:hover { background: var(--l1); }
+[data-role='acc.review.stack-body'] {
+	padding: 10px 0;
+	gap: 5px;
+}
+[data-role='acc.review.rail'] {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	width: 10px;
+	flex: none;
+}
+[data-role='acc.review.rail']::before {
+	content: '';
+	width: 2px;
+	height: 14px;
+	background: var(--l3);
+}
+[data-role='acc.review.rail']::after {
+	content: '';
+	width: 2px;
+	flex: 1;
+	background: var(--l3);
+}
+[data-role='acc.review.rail'].first::before,
+[data-role='acc.review.rail'].last::after { background: transparent; }
+[data-role='acc.review.rail-dot'] {
+	display: block;
+	width: 10px;
+	height: 10px;
+	flex: none;
+	box-sizing: border-box;
+	border-radius: 5px;
+	border: 2px solid var(--tc, var(--l3));
+	background: var(--panel);
+}
+
+[data-role='acc.review.fold'] {
+	padding: 10px 14px 6px;
+}
+[data-role='acc.review.error'] {
+	padding: 10px 14px;
+	font-size: 11px;
+}
+[data-role='acc.review.empty'] {
+	margin: 12px 10px 0;
+	padding: 20px;
+	gap: 6px;
+	align-items: center;
+	text-align: center;
+	border-radius: 10px;
+	border: 1px solid var(--l2);
+	animation: acc-review-rise 260ms ease-out both;
+}
+[data-role='acc.review.empty-title'] {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--t1);
+}
+
+/* Loading placeholders and the ELI5 wait. */
+[data-role='acc.review.skel'] {
+	height: 10px;
+	border-radius: 5px;
+	background: var(--raise);
+	animation: acc-review-pulse 1.3s ease-in-out infinite;
+}
+[data-role='acc.review.skel'].w1 { width: 90%; }
+[data-role='acc.review.skel'].w2 { width: 75%; animation-delay: 120ms; }
+[data-role='acc.review.skel'].w3 { width: 82%; animation-delay: 240ms; }
+[data-role='acc.review.skel'].w4 { width: 60%; animation-delay: 360ms; }
+[data-role='acc.review.skels'] {
+	gap: 8px;
+}
+@keyframes acc-review-pulse {
+	0%, 100% { opacity: 0.35; }
+	50% { opacity: 0.9; }
+}
+
+/* Detail. */
+[data-role='acc.review.detail'] {
+	padding: 10px 12px 0;
+	gap: 10px;
+}
+[data-role='acc.review.head'] {
+	gap: 6px;
+	animation: acc-review-rise 260ms ease-out both;
+}
+[data-role='acc.review.head-title'] {
+	font-size: 15px;
+	font-weight: 600;
+	line-height: 1.35;
+	color: var(--t1);
+}
+[data-role='acc.review.actions'] {
+	gap: 6px;
+}
+[data-role='acc.review.tabs'] {
+	align-self: flex-start;
+}
+[data-role='acc.review.trail'] {
+	gap: 4px;
+}
+[data-role='acc.review.pill'] {
+	display: flex;
+	align-items: center;
+	height: 20px;
+	padding: 0 7px;
+	border-radius: 10px;
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--t3);
+	background: var(--raise);
+	border: 1px solid var(--raise);
+	transition: color 140ms ease, border-color 140ms ease;
+}
+[data-role='acc.review.pill']:hover { color: var(--t1); }
+[data-role='acc.review.pill'][data-mark='current'] {
+	color: var(--t1);
+	background: rgb(from var(--accent) r g b / 14%);
+	border-color: var(--accent);
+}
+
+/* Tab bodies. */
+[data-role='acc.review.panel'] {
+	margin: 10px 10px 12px;
+	padding: 14px;
+	gap: 8px;
+	border-radius: 10px;
+	background: var(--card);
+	border: 1px solid var(--l2);
+	animation: acc-review-rise 260ms ease-out both;
+}
+[data-role='acc.review.panel-plain'] {
+	margin: 10px 10px 12px;
+	padding: 14px;
+	gap: 8px;
+	background: transparent;
+	border-color: transparent;
+	align-items: flex-start;
+}
+[data-role='acc.review.panel-accent'] {
+	margin: 10px 10px 12px;
+	padding: 14px;
+	gap: 8px;
+	border-radius: 10px;
+	background: var(--card);
+	border: 1px solid var(--l3);
+}
+[data-role='acc.review.stack-col'] > [data-role='acc.review.panel-accent'] { margin: 0; }
+[data-role='acc.review.body'] > [data-role='acc.review.note'] { margin: 10px 14px; }
+[data-role='acc.review.stack-col'] {
+	margin: 10px 10px 12px;
+	gap: 8px;
+}
+[data-role='acc.review.stack-col'] > * {
+	animation: acc-review-rise 260ms ease-out both;
+}
+[data-role='acc.review.note'] {
+	padding: 4px 4px;
+	font-size: 12px;
+}
+[data-role='acc.review.summary'] {
+	font-size: 12px;
+	line-height: 1.5;
+	color: var(--t1);
+}
+[data-role='acc.review.reading'] {
+	font-size: 12px;
+}
+[data-role='acc.review.md'] {
+	font-family: var(--sans);
+	font-size: 12.5px;
+}
+[data-role='acc.review.checked-list'] {
+	padding: 4px 4px 0;
+	gap: 3px;
+}
+[data-role='acc.review.checked'] {
+	font-size: 11px;
+	line-height: 1.45;
+}
+[data-role='acc.review.list-panel'] {
+	margin: 10px 10px 12px;
+	border-radius: 10px;
+	background: var(--card);
+	border: 1px solid var(--l2);
+	overflow: hidden;
+	gap: 0;
+	animation: acc-review-rise 260ms ease-out both;
+}
+[data-role='acc.review.check-top'] {
+	height: 34px;
+	padding: 0 12px;
+	border-bottom: 1px solid var(--l2);
+}
+[data-role='acc.review.check-head'] {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--t1);
+}
+[data-role='acc.review.check'] {
+	height: 28px;
+	padding: 0 12px;
+	font-size: 11.5px;
+	transition: background 140ms ease;
+}
+[data-role='acc.review.check']:hover { background: var(--l1); }
+
+[data-role='acc.review.comment'] {
+	padding: 12px;
+	gap: 8px;
+	border-radius: 10px;
+	background: var(--card);
+	border: 1px solid var(--l2);
+	transition: border-color 140ms ease, opacity 200ms ease;
+}
+[data-role='acc.review.comment'][data-mark='link']:hover { border-color: var(--l3); }
+[data-role='acc.review.comment'][data-mark='editing'] { border-color: var(--accent); }
+[data-role='acc.review.comment'][data-mark='posted'] { opacity: 0.72; }
+[data-role='acc.review.comment'][data-mark='bot'] { background: var(--l1); }
+[data-role='acc.review.comment'][data-mark='author'] { border-color: var(--l3); }
+[data-role='acc.review.bot-body'] {
+	font-size: 11px;
+	line-height: 1.45;
+}
+[data-role='acc.review.thread-body'] {
+	font-size: 12px;
+	line-height: 1.45;
+	color: var(--t1);
+}
+[data-role='acc.review.editor'] {
+	background: var(--panel);
+	border: 1px solid var(--l3);
+	border-radius: 8px;
+	padding: 8px 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	[data-role='acc.review.card'],
+	[data-role='acc.review.stack'],
+	[data-role='acc.review.empty'],
+	[data-role='acc.review.head'],
+	[data-role='acc.review.panel'],
+	[data-role='acc.review.list-panel'],
+	[data-role='acc.review.stack-col'] > *,
+	[data-role='acc.review.skel'] {
+		animation: none;
+	}
+}

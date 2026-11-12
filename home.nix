@@ -4,6 +4,17 @@ let
   herdr-core = pkgs.callPackage ./pkgs/herdr-core.nix { };
   omp = pkgs.callPackage ./pkgs/omp.nix { };
 
+  overseer = pkgs.applyPatches {
+    name = "overseer-free-panels";
+    src = pkgs.fetchFromGitHub {
+      owner = "mmnavarr";
+      repo = "overseer";
+      rev = "5bc52f7fb5b7665ada4f060a66715d074c9822f5";
+      hash = "sha256-UAyzCLk3QM10MEqv0SDc8TX6IvarxIzKxF5eCgIatl4=";
+    };
+    patches = [ ./config/tern/overseer-free-panels.patch ];
+  };
+
   # SecretSpec 0.18 is incompatible with pass-cli >= 2.2.4.
   # Remove this pin once nixpkgs ships SecretSpec >= 0.19.
   protonPassCli = pkgs.proton-pass-cli.overrideAttrs (old: {
@@ -22,6 +33,34 @@ let
            --file "$HOME/nix-config/config/secretspec/opencode/secretspec.toml" \
            run -- \
            "$HOME/.opencode/bin/opencode" "$@"
+  '';
+
+  # entropy's .mcp.json starts `mcp-grafana` with a token file; this picks the token from SecretSpec by GRAFANA_URL instead.
+  mcpGrafanaWithSecrets = pkgs.writeShellScriptBin "mcp-grafana" ''
+    export SECRETSPEC_PROTONPASS_CLI_PATH="${protonPassCli}/bin/pass-cli"
+    export SECRETSPEC_REASON="mcp-grafana read-only token"
+    case "$GRAFANA_URL" in
+      *staging*) name=GRAFANA_STAGING_TOKEN ;;
+      *production*) name=GRAFANA_PRODUCTION_TOKEN ;;
+    esac
+    unset GRAFANA_SERVICE_ACCOUNT_TOKEN_FILE
+
+    exec ${pkgs.secretspec}/bin/secretspec \
+           --file "$HOME/nix-config/config/secretspec/grafana/secretspec.toml" \
+           run -- \
+           sh -c 'export GRAFANA_SERVICE_ACCOUNT_TOKEN="$(printenv "$0")"; exec "$@"' "$name" \
+           ${pkgs.mcp-grafana}/bin/mcp-grafana "$@"
+  '';
+
+  # Injects SLACK_MCP_CLIENT_SECRET, read by ~/.omp/agent/mcp.json as ${SLACK_MCP_CLIENT_SECRET}.
+  ompWithSecrets = pkgs.writeShellScriptBin "omp" ''
+    export SECRETSPEC_PROTONPASS_CLI_PATH="${protonPassCli}/bin/pass-cli"
+    export SECRETSPEC_REASON="''${SECRETSPEC_REASON:-omp: Slack MCP OAuth client secret}"
+
+    exec ${pkgs.secretspec}/bin/secretspec \
+           --file "$HOME/nix-config/config/secretspec/omp/secretspec.toml" \
+           run -- \
+           ${omp}/bin/omp "$@"
   '';
 
   kimiCode = pkgs.stdenvNoCC.mkDerivation {
@@ -115,8 +154,9 @@ in
     obsidian
     protonPassCli
     opencodeWithSecrets
+    mcpGrafanaWithSecrets
     kimiCode
-    omp
+    ompWithSecrets
     herdr-core
     linearTui
     slk
@@ -171,8 +211,22 @@ in
     config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/nix-config/config/herdr-app/mods/acc-md";
   home.file.".config/herdr-app/mods/acc-automation".source =
     config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/nix-config/config/herdr-app/mods/acc-automation";
+  home.file.".config/herdr-app/mods/acc-new-menu".source =
+    config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/nix-config/config/herdr-app/mods/acc-new-menu";
+  home.file.".config/herdr-app/mods/acc-note".source =
+    config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/nix-config/config/herdr-app/mods/acc-note";
   home.file.".config/herdr-app/mods/acc-tabs".source =
     config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/nix-config/config/herdr-app/mods/acc-tabs";
+  home.file.".config/herdr-app/mods/usage-limits".source =
+    config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/nix-config/config/herdr-app/mods/usage-limits";
+
+  # GUI-launched Tern may omit the Nix profile from PATH. Overseer also searches
+  # ~/.local/bin directly, so expose the managed Worktrunk binary there.
+  home.file.".local/bin/wt".source = "${pkgs.worktrunk}/bin/wt";
+
+  home.file."Library/Application Support/Tern/plugins/overseer.path".text = "${overseer}";
+  home.file."Library/Application Support/Tern/plugins/acc.path".text =
+    "${config.home.homeDirectory}/nix-config/config/tern/acc";
 
   home.file.".config/rio".source =
     config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/nix-config/config/rio";
@@ -362,6 +416,10 @@ in
       on-window-detected = [
         {
           "if" = "test %{app-bundle-id} = com.apple.systempreferences";
+          run = "layout floating";
+        }
+        {
+          "if".app-name-regex-substring = "mpv";
           run = "layout floating";
         }
       ];

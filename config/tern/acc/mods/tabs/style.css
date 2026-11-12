@@ -1,0 +1,231 @@
+.tn-dk-c[data-program='omp'], .tn-dk-c[data-program='secretspec'], .tn-dk-c[data-icon='app-omp'] {
+  background-color: #6d5efc;
+  background-image: url("mods/tabs/omp.svg");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 72% 72%;
+  color: white;
+}
+.tn-dk-c[data-program='omp'] > svg, .tn-dk-c[data-program='secretspec'] > svg, .tn-dk-c[data-icon='app-omp'] > svg { opacity: 0; }
+.tn-face[data-program='omp'], .tn-face[data-program='secretspec'], .tn-face[data-icon='app-omp'] {
+  background-color: #6d5efc;
+  border-radius: 3px;
+  background-image: url("mods/tabs/omp.svg");
+  background-size: 72% 72%;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+.tn-face[data-program='omp'] > svg, .tn-face[data-program='secretspec'] > svg, .tn-face[data-icon='app-omp'] > svg { opacity: 0; }
+.tn-dk-c[data-st='working'], .tn-dk-c[data-st='waiting'], .tn-dk-c[data-st='done'], .tn-dk-c[data-st='failed'] { position: relative; }
+.tn-dk-c[data-st='working']::after {
+  content: ""; position: absolute; right: -2px; bottom: -2px; width: 9px; height: 9px;
+  border: 2px solid var(--l2); border-top-color: var(--accent); border-radius: 50%;
+  animation: acc-tab-spin 900ms linear infinite;
+}
+.tn-dk-c[data-st='waiting']::after, .tn-dk-c[data-st='done']::after, .tn-dk-c[data-st='failed']::after {
+  content: ""; position: absolute; right: -1px; bottom: -1px; width: 6px; height: 6px;
+  border-radius: 50%; background: var(--ok);
+}
+.tn-dk-c[data-st='waiting']::after { background: var(--warn); }
+.tn-dk-c[data-st='failed']::after { background: var(--bad); }
+
+/* Vertical tabs share one grid: account/session header, groups, rows and filter.
+   Use Tern's own sidebar width so dragging its edge keeps everything aligned. */
+html.tabs-v #sidebar {
+  padding: 88px 12px 12px; gap: 12px;
+}
+html.tabs-v #sidebar .tn-vt:not(.tn-vt-ghosts) { gap: 12px; }
+html.tabs-v #sidebar .nav-head {
+  display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px;
+  font-size: 12px; color: var(--t3);
+}
+html.tabs-v #sidebar .nav-head > span:not(.n) {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+html.tabs-v #sidebar .nav-head > .n {
+  flex: 0 0 20px; width: 20px; margin: 0; text-align: center;
+}
+html.tabs-v #sidebar .nav-head > .chev { flex: none; width: 12px; height: 12px; }
+html.tabs-v #sidebar .nav-items > div { display: flex; flex-direction: column; gap: 2px; }
+html.tabs-v #sidebar .nav-row {
+  display: flex; align-items: center; gap: 8px; height: 32px; min-height: 32px;
+  padding: 0 8px; margin: 0; border-radius: 8px;
+}
+html.tabs-v #sidebar .nav-row > .tn-dk { --dk: 20px; flex: 0 0 20px; width: 20px; height: 20px; }
+html.tabs-v #sidebar .nav-row > .lbl {
+  flex: 1; min-width: 0; line-height: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+html.tabs-v #sidebar .nav-row > .hint,
+html.tabs-v #sidebar .nav-row > .meta.keys { display: none; }
+/* Anchor Tern's expanded close hit target to the button, never the whole row. */
+html.tabs-v #sidebar .nav-row > .tn-tx {
+  position: relative; top: auto; right: auto; bottom: auto; left: auto;
+  flex: 0 0 20px; width: 20px; height: 20px; margin: 0; padding: 0;
+  transform: none; visibility: hidden;
+}
+html.tabs-v #sidebar .nav-row:hover > .tn-tx,
+html.tabs-v #sidebar .nav-row.on > .tn-tx,
+html.tabs-v #sidebar .nav-row:focus-within > .tn-tx { visibility: visible; opacity: 1; }
+html.tabs-v #sidebar .tn-vt-find { height: 32px; margin: 0; padding: 0 8px; border-radius: 8px; }
+html.tabs-v #sidebar .tn-vt-q { flex: 1; min-width: 0; margin: 0; padding: 0; }
+html.tabs-v #sidebar .tn-vt-find .fld { gap: 8px; }
+html.tabs-v #sidebar .tn-vt-find .fld > .ico { flex: 0 0 20px; width: 20px; height: 16px; }
+
+/* Keep the native title bar draggable; only its controls move into the sidebar. */
+html.tabs-v nav#tabbar .tb-in {
+  position: fixed; top: 44px; left: 12px; width: calc(var(--vt-w) - 24px); height: 32px;
+  display: flex; flex-direction: row; align-items: center; gap: 4px;
+  margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent;
+  box-shadow: none; transform: none; opacity: 1;
+}
+html.tabs-v nav#tabbar .tb-tools,
+html.tabs-v nav#tabbar .tb-sp { display: none; }
+html.tabs-v nav#tabbar .tn-peers { flex: 0 0 28px; width: 28px; height: 32px; margin: 0; padding: 2px; }
+html.tabs-v nav#tabbar .tn-peer-av { width: 24px; height: 24px; }
+html.tabs-v nav#tabbar .tn-session-tab {
+  display: flex; align-items: center; flex: 1; min-width: 0; height: 32px;
+  gap: 6px; margin: 0; padding: 0 6px; border: 0;
+}
+html.tabs-v nav#tabbar .tn-session-tab > .nm {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+html.tabs-v nav#tabbar .tb-add { flex: 0 0 28px; width: 28px; height: 32px; margin: 0; padding: 0; }
+
+/* Expand the header's own paint surface when the native + picker opens. */
+html.tabs-v nav#tabbar .tb-in:has(.tb-blocks.open) { height: auto; flex-wrap: wrap; }
+html.tabs-v nav#tabbar .tb-blocks {
+  position: static; flex: 0 0 100%;
+  display: none; width: 100%; max-width: none; height: auto; margin: 0;
+  padding: 8px; gap: 4px; flex-wrap: wrap; justify-content: center;
+  border: 1px solid var(--l3); border-radius: 8px;
+  background: var(--pop-bg); box-shadow: var(--pop-shadow); transition: none; z-index: 60;
+}
+html.tabs-v nav#tabbar .tb-blocks.open { display: flex; opacity: 1; }
+html.tabs-v nav#tabbar .tb-blocks .tb-blk {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: 0 0 32px; width: 32px; height: 32px; margin: 0; padding: 0;
+  opacity: 1; transform: none; transition: none;
+}
+html.tabs-v nav#tabbar .tb-blocks .tb-blk.off { display: none; }
+
+/* Keep plugin buttons in the title bar and subscription usage at the foot.
+   A full-width flex break separates the rows; only the controls take clicks.
+   .tb-tools reserves title-bar room for the nine always-labeled buttons
+   (Files … Projects, ~720px at 12px text) so tabs never slide underneath them. */
+/* The host offsets the normal footer for vertical tabs. This viewport overlay
+   must override that left inset, otherwise both rows shift beyond the right edge. */
+nav#tabbar .tb-tools { visibility: hidden; width: var(--acc-bar-w, 740px); flex: none; }
+nav#tabbar .tb-in > .tn-ib-badge { display: none; }
+#statusline.kit-statusbar {
+  position: fixed !important; top: 6px; left: 0 !important; right: 0; bottom: auto; width: 100%; height: calc(100vh - 12px) !important;
+  min-height: 0; max-height: none; max-width: none; display: flex; justify-content: flex-end; pointer-events: none; padding: 0 16px; margin: 0; border: 0; background: transparent; box-shadow: none;
+  z-index: 50; overflow: visible;
+}
+#statusline > .sb-sp, #statusline .sl-cwd, #statusline .sl-git, #statusline .sl-run, #statusline .sl-n { display: none; }
+#statusline > .sb-grp:last-child {
+  display: flex; justify-content: flex-end; flex: 1; height: 100%; max-width: none; overflow: visible;
+  pointer-events: none;
+}
+/* Overseer's Projects action is labeled like the panel toggles; both share the
+   fixed-size button box below and only recolor on hover. */
+#statusline .sl-plugin[data-plugin='overseer'] {
+  display: inline-flex; align-items: center; justify-content: flex-start; gap: 6px; width: auto; height: 28px;
+  padding: 0 8px; border-radius: 7px; overflow: visible; white-space: nowrap; color: var(--t3); position: relative;
+}
+#statusline .sl-plugins {
+  display: flex; flex-wrap: wrap; align-items: center; align-content: space-between;
+  justify-content: flex-end; column-gap: 1px; width: 100%; height: 100%; margin-left: auto;
+  pointer-events: none;
+}
+#statusline .sl-plugins::before { content: ''; order: 1; flex-basis: 100%; height: 0; }
+#statusline .sl-plugin { font-family: var(--sans); flex-shrink: 0; pointer-events: auto; }
+#statusline .sl-plugin[data-plugin='acc'][data-tone^='acc-'],
+#statusline .sl-plugin[data-plugin='overseer'] {
+  background: transparent; background-image: none; border: 0; box-shadow: none;
+}
+#statusline .sl-plugin[data-plugin='overseer'] > .ico { width: 15px; height: 15px; flex: none; }
+#statusline .sl-plugin[data-tone~='usage-provider'],
+#statusline .sl-plugin[data-tone~='usage-meter'],
+#statusline .sl-plugin[data-tone~='usage-number'] { order: 2; }
+
+/* Toolbar controls contain only aligned icons and labels. Active and hovered
+   buttons use one flat fill, without the host's layered button shadows. */
+#statusline .sl-plugin[data-plugin='acc'][data-tone^='acc-'] {
+  display: inline-flex; align-items: center; justify-content: flex-start; position: relative;
+  gap: 6px; width: auto; height: 28px; padding: 0 8px; border-radius: 7px;
+  overflow: visible; color: var(--t3); white-space: nowrap;
+}
+#statusline .sl-plugin[data-plugin='acc'][data-tone^='acc-'] > .ico { width: 15px; height: 15px; flex: none; }
+#statusline .sl-plugin[data-plugin='acc'][data-tone^='acc-']:hover,
+#statusline .sl-plugin[data-plugin='overseer']:hover { background: var(--l1); color: var(--t1); }
+#statusline .sl-plugin[data-plugin='acc'][data-tone$='-on'] { background: var(--l1); color: var(--t1); }
+
+/* The visible labels identify toolbar buttons; suppress native command-ID tips. */
+body:has(#statusline .sl-plugin[data-plugin='acc'][data-tone^='acc-']:hover, #statusline .sl-plugin[data-plugin='overseer']:hover) > .tooltip { display: none; }
+
+/* Usage: the provider's logo, then each limit window as a mini pill + label. */
+#statusline .sl-plugin[data-tone~='usage-provider'],
+#statusline .sl-plugin[data-tone~='usage-meter'],
+#statusline .sl-plugin[data-tone~='usage-number'] {
+  display: inline-flex; align-items: center; height: 20px; margin-bottom: 0; border: 0; box-shadow: none;
+}
+#statusline .sl-plugin[data-tone~='usage-provider'] {
+  width: 14px; padding: 0; margin-left: 12px; margin-right: 2px; border-radius: 0;
+  overflow: hidden; font-size: 0; color: transparent;
+  background-color: transparent; background-size: 14px 14px; background-repeat: no-repeat; background-position: center;
+}
+#statusline .sl-plugin[data-tone~='p-claude'] { background-image: url("mods/usage/icons/claude.svg"); }
+#statusline .sl-plugin[data-tone~='p-codex'] { background-image: url("mods/usage/icons/openai-dark.svg"); }
+@media (prefers-color-scheme: light) {
+  #statusline .sl-plugin[data-tone~='p-codex'] { background-image: url("mods/usage/icons/openai-light.svg"); }
+}
+#statusline .sl-plugin[data-tone~='usage-meter'] {
+  --acc-fill: 0%; --acc-c: var(--ok);
+  gap: 6px; padding: 0 5px; border-radius: 5px;
+  font-size: 11px; font-variant-numeric: tabular-nums; color: var(--t2); white-space: nowrap;
+  background: transparent; border: 0; box-shadow: none;
+}
+#statusline .sl-plugin[data-tone~='usage-meter']::before {
+  content: ''; width: 18px; height: 4px; flex: none; border-radius: 2px;
+  background: linear-gradient(to right, var(--acc-c) 0 var(--acc-fill), var(--l2) var(--acc-fill) 100%);
+}
+#statusline .sl-plugin[data-tone~='usage-provider']:hover,
+#statusline .sl-plugin[data-tone~='usage-meter']:hover,
+#statusline .sl-plugin[data-tone~='usage-number']:hover { background-color: transparent; box-shadow: none; }
+body:has(#statusline .sl-plugin[data-tone~='usage-provider']:hover, #statusline .sl-plugin[data-tone~='usage-meter']:hover, #statusline .sl-plugin[data-tone~='usage-number']:hover) > .tooltip { display: none; }
+#statusline .sl-plugin[data-tone~='lvl-warn'] { --acc-c: var(--warn); color: var(--warn); }
+#statusline .sl-plugin[data-tone~='lvl-hot'] { --acc-c: var(--bad); color: var(--bad); }
+#statusline .sl-plugin[data-tone~='stale'] { opacity: .5; }
+#statusline .sl-plugin[data-tone~='nobar']::before { display: none; }
+#statusline .sl-plugin[data-tone~='usage-number'] {
+  padding: 0 5px; font-size: 10.5px; color: var(--t3);
+}
+#statusline .sl-plugin[data-tone~='usage-number'][data-tone~='lvl-warn'] { color: var(--warn); }
+#statusline .sl-plugin[data-tone~='usage-number'][data-tone~='lvl-hot'] { color: var(--bad); }
+
+#statusline .sl-plugin[data-tone~='f0'] { --acc-fill: 0%; }
+#statusline .sl-plugin[data-tone~='f5'] { --acc-fill: 5%; }
+#statusline .sl-plugin[data-tone~='f10'] { --acc-fill: 10%; }
+#statusline .sl-plugin[data-tone~='f15'] { --acc-fill: 15%; }
+#statusline .sl-plugin[data-tone~='f20'] { --acc-fill: 20%; }
+#statusline .sl-plugin[data-tone~='f25'] { --acc-fill: 25%; }
+#statusline .sl-plugin[data-tone~='f30'] { --acc-fill: 30%; }
+#statusline .sl-plugin[data-tone~='f35'] { --acc-fill: 35%; }
+#statusline .sl-plugin[data-tone~='f40'] { --acc-fill: 40%; }
+#statusline .sl-plugin[data-tone~='f45'] { --acc-fill: 45%; }
+#statusline .sl-plugin[data-tone~='f50'] { --acc-fill: 50%; }
+#statusline .sl-plugin[data-tone~='f55'] { --acc-fill: 55%; }
+#statusline .sl-plugin[data-tone~='f60'] { --acc-fill: 60%; }
+#statusline .sl-plugin[data-tone~='f65'] { --acc-fill: 65%; }
+#statusline .sl-plugin[data-tone~='f70'] { --acc-fill: 70%; }
+#statusline .sl-plugin[data-tone~='f75'] { --acc-fill: 75%; }
+#statusline .sl-plugin[data-tone~='f80'] { --acc-fill: 80%; }
+#statusline .sl-plugin[data-tone~='f85'] { --acc-fill: 85%; }
+#statusline .sl-plugin[data-tone~='f90'] { --acc-fill: 90%; }
+#statusline .sl-plugin[data-tone~='f95'] { --acc-fill: 95%; }
+#statusline .sl-plugin[data-tone~='f100'] { --acc-fill: 100%; }
+@keyframes acc-tab-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .tn-dk-c[data-st='working']::after { animation: none; transition: none; }
+}
+

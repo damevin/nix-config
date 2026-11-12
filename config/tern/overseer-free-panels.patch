@@ -1,0 +1,565 @@
+--- a/window.luau
++++ b/window.luau
+@@ -549,9 +549,8 @@
+ 	return canvas.owner == "overseer" and canvas.title == NAVIGATOR.title
+ end
+ 
+--- The window's one Projects slot: the navigator canvas, or a form shown in its
+--- place. Adopts what a reload (or an older, per-session version) left open and
+--- closes any extra, so a window never shows two.
++-- The window's Projects slot: the navigator canvas, or its form. Adopt an
++-- existing slot after reload without changing any native pane layout.
+ local slotPane = nil
+ local function slot(cx)
+ 	if slotPane and not cx.session:pane(slotPane) then slotPane = nil end
+@@ -563,12 +562,6 @@
+ 		if isNavigator(canvas) and cx.session:pane(canvas.pane) then table.insert(found, canvas.pane) end
+ 	end
+ 	slotPane = slotPane or found[1]
+-	for _, pane in found do
+-		if pane ~= slotPane then
+-			cx.layout:close(pane)
+-			rendered[pane] = nil
+-		end
+-	end
+ 	if not slotPane then return nil end
+ 	local info = cx.session:pane(slotPane)
+ 	return slotPane, if info and info.block == "overseer.form" then "form" else "canvas"
+@@ -818,99 +811,8 @@
+ 	end)
+ end
+ 
+--- Tern panes belong to one tab, so the window's one Projects panel follows you:
+--- whenever another tab is shown, it moves there, full height on the left.
+-local DEFAULT_SHARE = 0.3
+--- The width you leave it at travels with it (a share of the tab).
+-local share = tonumber(tern.kv.get("panel-share")) or DEFAULT_SHARE
+--- Whether you want the panel shown; it reopens after vanishing with its tab.
+-local wantPanel = tern.kv.get("panel-open") == true
++local wantPanel = tern.kv.get("panel-open") ~= false
+--- The tab the panel was last placed in, to tell a closed panel from a closed tab.
+ local panelTab = nil
+-
+-local function firstLeaf(tree, skip)
+-	if not tree then return nil end
+-	if tree.pane then return if tree.pane == skip then nil else tree.pane end
+-	return firstLeaf(tree[1], skip) or firstLeaf(tree[2], skip)
+-end
+-
+--- Whether `tree` contains `pane`.
+-local function hasPane(tree, pane)
+-	if not tree then return false end
+-	if tree.pane then return tree.pane == pane end
+-	return hasPane(tree[1], pane) or hasPane(tree[2], pane)
+-end
+-
+--- The panel's share of the tab's width while it is the leftmost pane, however
+--- deeply the tab's splits nest it. Each "right" split it sits left of multiplies
+--- the share; "down" splits don't change its width. A pane that isn't on the left
+--- edge returns nil, so pin still moves it there.
+-local function leftShare(cx, tab, pane)
+-	local layout = cx.session:layout(tab)
+-	local node = layout and layout.root
+-	local share = 1
+-	while node and not node.pane do
+-		if node.split == "right" then
+-			if not hasPane(node[1], pane) then return nil end
+-			share = share * node.ratio
+-			node = node[1]
+-		elseif hasPane(node[1], pane) then
+-			node = node[1]
+-		else
+-			node = node[2]
+-		end
+-	end
+-	if node and node.pane == pane then return share end
+-	return nil
+-end
+-
+--- Tern resizes in cells, and a hidden tab's cells differ from the shown one's,
+--- so steer by the ratio: step, see how far it moved, correct.
+-local function sizeTo(cx, tab, pane, want)
+-	local r = leftShare(cx, tab, pane)
+-	local step = if r then math.floor((want - r) * 180 + 0.5) else 0
+-	for _ = 1, 8 do
+-		if not r or math.abs(r - want) < 0.005 or step == 0 then return end
+-		cx.layout:resize(pane, "right", step)
+-		local after = leftShare(cx, tab, pane)
+-		if not after or after == r then return end
+-		step = math.floor((want - after) * step / (after - r) + 0.5)
+-		r = after
+-	end
+-end
+-
+--- Moves the slot into `tab`, left of everything, unless it is already there.
+-local function pin(cx, tab)
+-	local pane = slot(cx)
+-	if not pane then return end
+-	local layout = cx.session:layout(tab)
+-	if not layout then return end
+-	local from = cx.session:tab_of(pane)
+-	if from == tab and firstLeaf(layout.root) == pane then
+-		panelTab = tab
+-		return
+-	end
+-	local target = firstLeaf(layout.root, pane)
+-	if not target then return end
+-	if from then
+-		local current = leftShare(cx, from, pane)
+-		if current and math.abs(current - share) > 0.01 then
+-			share = math.clamp(current, 0.15, 0.6)
+-			tern.kv.set("panel-share", share)
+-		end
+-	end
+-	if from ~= tab then
+-		if from then
+-			cx.layout:move_to_tab(pane, tab, { focus = false })
+-		else
+-			cx.layout:unpark(pane, { focus = false })
+-		end
+-	end
+-	cx.layout:move(pane, target, "left", { focus = false })
+-	sizeTo(cx, tab, pane, share)
+-	panelTab = tab
+-end
+-
+ local function shownTab(cx)
+ 	local focused = cx.session:focused()
+ 	return focused and cx.session:tab_of(focused)
+@@ -938,55 +840,68 @@
+ 	tern.kv.set("panel-open", want)
+ end
+ 
++-- Native pane dimensions are available through the CLI once the new canvas
++-- mounts. Read them once, then leave every subsequent resize to the user.
++local function initialSplit(tree, pane, target)
++	if not tree or tree.pane then return false end
++	if tree.split == "right" and tree[1] and tree[1].pane == pane and tree[2] and tree[2].pane == target
++		and math.abs((tree.ratio or 0.5) - 0.18) < 0.001 then return true end
++	return initialSplit(tree[1], pane, target) or initialSplit(tree[2], pane, target)
++end
++
+--- Opens a fresh navigator in `tab`.
+-local function openPanel(cx, tab)
++local function sizeNewPanel(pane, tab, target)
++	budget.later("initial Projects width", 50, function(cx)
++		if not cx or shownTab(cx) ~= tab or cx.session:tab_of(pane) ~= tab then return end
++		local layout = cx.session:layout(tab)
++		if not layout or layout.zoomed or not initialSplit(layout.root, pane, target) then return end
++		local signature = tern.json.encode(layout.root)
++		local cli = (tern.getenv("HOME") or "") .. "/.local/bin/tern"
++		budget.process("initial Projects dimensions", { cli, "ls", "--json", "--window", cx:window_key() },
++			{ timeout_ms = 1500 }, function(result, nextCx)
++				if result.status ~= 0 or not nextCx or shownTab(nextCx) ~= tab
++					or nextCx.session:tab_of(pane) ~= tab then return end
++				local current = nextCx.session:layout(tab)
++				if not current or current.zoomed or tern.json.encode(current.root) ~= signature then return end
++				local ok, state = pcall(tern.json.decode, result.stdout)
++				if not ok or type(state) ~= "table" then return end
++				for _, session in state.sessions or {} do
++					if not session.shown then continue end
++					for _, shown in session.tabs or {} do
++						if not shown.shown or shown.zoomed then continue end
++						for _, block in shown.blocks or {} do
++							if block.id == pane and type(block.cols) == "number" and block.cols > 45 then
++								nextCx.layout:resize(pane, "right", 45 - block.cols)
++								return
++							end
++						end
++					end
++				end
++			end)
++	end)
++end
++
++-- Opens a compact navigator beside the current content, once.
++local function openPanel(cx)
++	local focused = cx.session:focused()
++	local tab = focused and cx.session:tab_of(focused)
++	local layout = tab and cx.session:layout(tab)
++	local first = layout and layout.root
++	while first and not first.pane do first = first[1] end
++	local target = first and first.pane or focused
+ 	local data = model(cx)
+ 	local pane, err = cx.canvas:open({
+ 		title = NAVIGATOR.title, about = NAVIGATOR.about,
+ 		view = view.render(data), how = "beside", focus = false,
++		target = target, dir = "left", ratio = 0.18,
+ 	})
+ 	if not pane then report(cx, err or "Could not open the Projects panel"); return nil end
+ 	slotPane = pane
++	panelTab = tab
+ 	rendered[pane] = tern.json.encode(data)
+-	if tab then pin(cx, tab) end
++	sizeNewPanel(pane, tab, target)
+ 	return pane
+ end
+ 
+--- Keeps the panel in the shown tab. Runs on every tab, pane and focus event and
+--- each tick, so one disabled hook can't leave it behind.
+-local function follow(cx, tab)
+-	if not localHost(cx) then return end
+-	tab = tab or shownTab(cx)
+-	if not tab then return end
+-	local pane = slot(cx)
+-	if not pane then
+-		if not wantPanel then return end
+-		-- Gone while its tab remains: you closed it. Gone with its tab (a closed
+-		-- session or tab): bring it back here.
+-		local tabStillOpen = false
+-		for _, info in cx.session:tabs() do
+-			if info.id == panelTab then tabStillOpen = true end
+-		end
+-		if tabStillOpen then
+-			setWantPanel(false)
+-			panelTab = nil
+-			return
+-		end
+-		openPanel(cx, tab)
+-		return
+-	end
+-	-- Alone in the shown tab: its last terminal just closed. Close the tab as
+-	-- Tern would have; the tab shown next takes the panel.
+-	local layout = cx.session:tab_of(pane) == tab and cx.session:layout(tab)
+-	if layout and not firstLeaf(layout.root, pane) then
+-		cx.layout:park(pane)
+-		return
+-	end
+-	-- A panel already open (for example, from before an update) is one you want.
+-	if not wantPanel then setWantPanel(true) end
+-	pin(cx, tab)
+-end
+-
+ -- Swaps `slot` for a new pane in the same place and size: Tern has no in-place
+ -- replace for canvases, so open the new pane beside the old one (splitting only
+ -- that slot), then close the old one so the new pane inherits the whole slot.
+@@ -1000,37 +915,132 @@
+ 	return pane
+ end
+ 
+--- Shows the Projects panel in the shown tab and focuses it, opening it if needed.
+-local function navigator(cx)
++-- Explicit Projects commands close a visible slot; internal callers only
++-- open or focus it. A hidden slot is revealed in its existing tab first.
++local function navigator(cx, toggleVisible)
+ 	if not requireLocal(cx) then return nil end
+ 	setWantPanel(true)
+-	local tab = shownTab(cx)
+ 	local pane = slot(cx)
+-	if pane then
+-		if tab then pin(cx, tab) end
+-	else
+-		pane = openPanel(cx, tab)
++	if not pane then
++		pane = openPanel(cx)
+ 		if not pane then return nil end
++		cx.layout:focus(pane)
++	else
++		local info = cx.session:pane(pane)
++		if info and info.parked then
++			cx.layout:unpark(pane, { focus = true })
++			cx.layout:focus(pane)
++		elseif toggleVisible and cx.session:tab_of(pane) == shownTab(cx) then
++			setWantPanel(false)
++			cx.layout:close(pane)
++			rendered[pane] = nil
++			slotPane, panelTab = nil, nil
++			return nil
++		elseif cx.session:tab_of(pane) ~= shownTab(cx) then
++			-- Native focus does not reveal a hidden tab. The CLI focuses the
++			-- existing pane in place, only in response to this explicit Open.
++			local cli = (tern.getenv("HOME") or "") .. "/.local/bin/tern"
++			budget.process("focus Projects", { cli, "focus", tostring(pane), "--window", cx:window_key() },
++				{ timeout_ms = 1500 }, function(result, nextCx)
++					if result.status ~= 0 and nextCx then
++						nextCx:toast("error", "Could not focus Projects", result.stderr or "")
++					end
++				end)
++		else
++			cx.layout:focus(pane)
++		end
+ 	end
+-	cx.layout:focus(pane)
+ 	refresh(cx)
+ 	return pane
+ end
+ 
+--- The Projects shortcut: hides the panel when it has focus, otherwise shows and focuses it.
+-local function togglePanel(cx)
+-	if not requireLocal(cx) then return end
+-	local pane, kind = slot(cx)
+-	if pane and kind == "canvas" and cx.session:focused() == pane then
+-		setWantPanel(false)
+-		cx.layout:close(pane)
+-		rendered[pane] = nil
+-		slotPane, panelTab = nil, nil
+-		return
++-- Projects is one native pane, and a pane belongs to one tab: when another tab
++-- is shown, it moves there, on the left, at the width it had. Within a tab its
++-- place and size stay the user's.
++local function firstLeaf(tree, skip)
++	if not tree then return nil end
++	if tree.pane then return if tree.pane == skip then nil else tree.pane end
++	return firstLeaf(tree[1], skip) or firstLeaf(tree[2], skip)
++end
++
++local function hasPane(tree, pane)
++	if not tree then return false end
++	if tree.pane then return tree.pane == pane end
++	return hasPane(tree[1], pane) or hasPane(tree[2], pane)
++end
++
++-- The pane's share of the tab's width while it sits on the left edge, else nil.
++local function leftShare(cx, tab, pane)
++	local layout = cx.session:layout(tab)
++	local node = layout and layout.root
++	local share = 1
++	while node and not node.pane do
++		if node.split == "right" then
++			if not hasPane(node[1], pane) then return nil end
++			share = share * node.ratio
++			node = node[1]
++		elseif hasPane(node[1], pane) then
++			node = node[1]
++		else
++			node = node[2]
++		end
+ 	end
+-	navigator(cx)
++	if node and node.pane == pane then return share end
++	return nil
+ end
+ 
++-- Tern resizes in cells, which differ between tabs, so step toward the ratio.
++local function sizeTo(cx, tab, pane, want)
++	local r = leftShare(cx, tab, pane)
++	local step = if r then math.floor((want - r) * 180 + 0.5) else 0
++	for _ = 1, 8 do
++		if not r or math.abs(r - want) < 0.005 or step == 0 then return end
++		cx.layout:resize(pane, "right", step)
++		local after = leftShare(cx, tab, pane)
++		if not after or after == r then return end
++		step = math.floor((want - after) * step / (after - r) + 0.5)
++		r = after
++	end
++end
++
++local followShare = 0.18
++local function follow(cx)
++	if not localHost(cx) then return end
++	local tab = shownTab(cx)
++	if not tab then return end
++	local pane = slot(cx)
++	if not pane then
++		if not wantPanel or #projects() == 0 then return end
++		for _, info in cx.session:tabs() do
++			if info.id == panelTab then
++				setWantPanel(false)
++				panelTab = nil
++				return
++			end
++		end
++		openPanel(cx)
++		return
++	end
++	local info = cx.session:pane(pane)
++	if not info then return end
++	if info.parked then
++		if not wantPanel then return end
++		cx.layout:unpark(pane, { focus = false })
++	end
++	local from = cx.session:tab_of(pane)
++	if from == tab then panelTab = tab; return end
++	local layout = cx.session:layout(tab)
++	if not layout or layout.zoomed then return end
++	local target = firstLeaf(layout.root, pane)
++	if not target then return end
++	local current = from and leftShare(cx, from, pane)
++	if current then followShare = math.clamp(current, 0.1, 0.6) end
++	cx.layout:move_to_tab(pane, tab, { focus = false })
++	cx.layout:move(pane, target, "left", { focus = false })
++	sizeTo(cx, tab, pane, followShare)
++	panelTab = tab
++end
++
+ local function findWorktree(path)
+ 	for _, project in projects() do
+ 		local entry = cache[project.id]
+@@ -1042,7 +1052,6 @@
+ end
+ 
+ -- Shows the worktree's session, creating and binding one when it has none.
+--- The panel follows into it (see follow).
+ local function ensureSession(cx, project, path, branch)
+ 	local session = boundSession(path, sessionsById(cx))
+ 	if session then
+@@ -1053,7 +1062,6 @@
+ 		bindings[path] = { id = session.id, host = session.host, project = project.id }
+ 		tern.kv.set("sessions", bindings)
+ 	end
+-	follow(cx)
+ end
+ 
+ -- Coordination rails, the relays: what happens in a sub-worktree's session
+@@ -1548,7 +1556,6 @@
+ 		local session = boundSession(path, sessionsById(cx))
+ 		if session and not tern.fs.exists(path) then
+ 			cx.sessions:switch(session.id)
+-			follow(cx)
+ 			redraw(cx)
+ 			return
+ 		end
+@@ -1608,7 +1615,16 @@
+ 		-- The panel lives in the shown tab: take it into the session shown now,
+ 		-- or it closes with this one.
+ 		follow(cx)
++		local pane, kind = slot(cx)
++		local tab = pane and cx.session:tab_of(pane)
++		if kind == "form" and tab then
++			for _, info in cx.session:tabs() do
++				if info.id == tab and info.session == session.id then
++					return false, "Show another tab before closing the Projects form's session."
++				end
++			end
++		end
+ 		cx.sessions:close(session.id)
+ 	end
+ 	bindings[path] = nil
+ 	tern.kv.set("sessions", bindings)
+@@ -1944,8 +1960,7 @@
+ 	})
+ end
+ 
+--- Forms take the Projects panel's place, like a page within it, and follow you
+--- the same way; finishing or going back puts the panel back.
++-- Forms take the Projects panel's place; finishing or going back restores it.
+ local function openForm(cx, mode, project, worktree)
+ 	if not requireLocal(cx) then return end
+ 	if worktree and removing(worktree.path) then report(cx, "This worktree is being deleted."); return end
+@@ -2523,7 +2538,7 @@
+ 		separately("command " .. id, run)
+ 	end })
+ end
+-command("projects", "Show or hide Projects", "branch", { "cmd+alt+shift+p" }, togglePanel)
++command("projects", "Show or hide Projects", "branch", { "cmd+alt+shift+p" }, function(cx) navigator(cx, true) end)
+ command("add", "Add project", "folder", nil, pickProject)
+ command("create", "Create worktree", "branch", nil, function(cx)
+ 	local project = activeWorktree(cx)
+@@ -2595,7 +2610,7 @@
+ 
+ -- Ticket and pull request links open in a tab of their own. `cx:open` puts a
+ -- URL in a browser split beside the focused pane whatever `how` says, so the
+--- new browser pane moves to a new tab (the panel follows it there).
++-- new browser pane moves to a new tab.
+ local function openLink(cx, url)
+ 	if type(url) ~= "string" or not url:match("^https://") then return end
+ 	local before = {}
+@@ -2717,22 +2732,19 @@
+ 	return { { text = "Projects", icon = "branch", command = "plugin.overseer.projects" } }
+ end)
+ 
+--- Moves the panel into the shown tab and draws it, in a callback of its own;
+--- changes made before it runs share it. `quiet` skips the draw: the tick
+--- follows every 750 ms but only needs to draw for its clocks (elapsed times,
+--- "checked in"), and a draw every tick kept Overseer near Tern's budget, so
+--- a busy machine tripped it and paused every timer.
+-local followQueued, followDraws = false, false
++-- Coalesce native state updates: Projects follows the shown tab, then redraws.
++-- Clock-only ticks can skip the expensive canvas draw.
++local redrawQueued, redrawDraws = false, false
+ local TICK_DRAW_MS = 5000
+ local lastTickDraw = -TICK_DRAW_MS
+-local function followSoon(quiet)
+-	followDraws = followDraws or not quiet
+-	if followQueued then return end
+-	followQueued = true
+-	budget.later("follow", 0, function(cx)
+-		followQueued = false
+-		local drawIt = followDraws
+-		followDraws = false
++local function redrawSoon(quiet)
++	redrawDraws = redrawDraws or not quiet
++	if redrawQueued then return end
++	redrawQueued = true
++	budget.later("panel state", 0, function(cx)
++		redrawQueued = false
++		local drawIt = redrawDraws
++		redrawDraws = false
+ 		if not cx then return end
+ 		local ok, err = pcall(follow, cx)
+ 		if not ok then tern.log.warn("Projects panel: " .. tostring(err)) end
+@@ -2785,7 +2797,7 @@
+ 	-- Events draw at once; the tick only for its clocks, every few seconds.
+ 	local clocks = tern.now() - lastTickDraw >= TICK_DRAW_MS
+ 	if clocks then lastTickDraw = tern.now() end
+-	followSoon(not clocks)
++	redrawSoon(not clocks)
+ end
+ 
+ -- Restarts the tick when it is overdue and Tern hasn't paused the timer hook
+@@ -2805,8 +2817,8 @@
+ -- A second clock, outside the timer hook: a short process every 5 s. When the
+ -- tick turns out to be overdue it is restarted. While timers can't run (the
+ -- tick was overdue, or Tern paused the timer hook, which doubles to minutes on
+--- repeat trips), this clock finishes jobs whose receipts are in and keeps the
+--- panel in the shown tab, so neither waits for timers to come back.
++-- repeat trips), this clock finishes jobs whose receipts are in, so they do
++-- not wait for timers to come back.
+ local function processClock()
+ 	local ok = pcall(budget.process, "clock", { "/bin/sleep", "5" }, { timeout_ms = 15000 }, function(_result, cx)
+ 		processClock()
+@@ -2814,8 +2826,6 @@
+ 		local restarted = ensureTicking("the process clock")
+ 		if restarted or tern.now() < timerPausedUntil then
+ 			checkJobs(cx, true)
+-			local followed, err = pcall(follow, cx)
+-			if not followed then tern.log.warn("Projects panel: " .. tostring(err)) end
+ 		end
+ 	end)
+ 	-- Can't start a process (shouldn't happen): events still check the tick.
+@@ -2824,13 +2834,13 @@
+ 
+ tern.on("window_start", function(_cx)
+ 	separately("refresh", refresh)
+-	followSoon()
++	redrawSoon()
+ end)
+--- Every tab, pane and focus change moves the panel into the shown tab.
++-- Native tab, pane and focus changes update the visible Projects data.
+ for _, name in { "focus", "tab_created", "tab_closed", "pane_created", "pane_closed" } do
+ 	tern.on(name, function(_ev, _cx)
+ 		ensureTicking(name)
+-		followSoon()
++		redrawSoon()
+ 	end)
+ end
+ -- An agent starting again clears its finished mark; any change redraws. The
+@@ -2847,7 +2857,7 @@
+ 	if ev.old == nil or ev.new == "exited" then
+ 		separately("rails leads", function(cx) if cx then syncAllLeads(cx) end end)
+ 	end
+-	followSoon()
++	redrawSoon()
+ end)
+ -- A turn that ends out of sight leaves a done or failed mark until you look.
+ tern.on("agent_finished", function(ev, _cx)
+@@ -2862,16 +2872,16 @@
+ 	else
+ 		separately("rails leads", function(cx) if cx then syncAllLeads(cx) end end)
+ 	end
+-	followSoon()
++	redrawSoon()
+ end)
+ -- Tern pauses a hook whose callback ran over its budget; due timers and
+--- process results wait for the pause, so catching up is one follow and draw.
++-- process results wait for the pause, so catching up needs one redraw.
+ tern.on("budget", function(ev, _cx)
+ 	tern.log.warn(budget.describe(ev))
+ 	if ev.hook == "timer" then
+ 		timerPausedUntil = if ev.state == "paused" then tern.now() + (ev.paused_ms or 0) + 1000 else 0
+ 	end
+-	if ev.state == "resumed" then followSoon() end
++	if ev.state == "resumed" then redrawSoon() end
+ end)
+ -- Timers are restarted on reload; window_start intentionally is not.
+ scheduleTick(tickGeneration)

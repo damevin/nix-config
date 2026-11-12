@@ -18,10 +18,46 @@ const span = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return s >=
 const short = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return s >= 86400 ? `${Math.floor(s / 86400)}d` : s >= 3600 ? `${Math.floor(s / 3600)}h` : s >= 60 ? `${Math.floor(s / 60)}m` : `${s}s`; };
 const ago = (iso) => (iso ? `${short(Date.now() - (typeof iso === "number" ? iso : Date.parse(iso)))} ago` : "");
 const until = (iso) => (iso ? (Date.parse(iso) > Date.now() ? `in ${span(Date.parse(iso) - Date.now())}` : "now") : "");
-const human = (ev) => one(ev).replace(/^codex\//, "").replace(/[/_]/g, " ").replace(/\bitem\b/g, "").trim() || "working";
 const idOf = (r) => r.issue_identifier ?? r.issue_id;
-// bg() takes plain colours only: a gradient is a row of strips whose alpha steps up (and back down).
-const ramp = (c, alphas, w, h) => h_flex().h(h).flex_none().children(alphas.map((a) => div().w(w).h(h).flex_none().bg(c + a)));
+const FEED = 30;
+const QUIET = 90e3;
+
+// Codex item types, as what the agent is doing while one runs and what it did once it completes.
+const ITEMS = [
+  [/command/, "Running a command", "Ran a command"],
+  [/reasoning/, "Thinking", "Thought it through"],
+  [/file change/, "Editing files", "Edited files"],
+  [/agent message/, "Writing", "Wrote an update"],
+  [/tool/, "Using a tool", "Used a tool"],
+  [/web search/, "Searching the web", "Searched the web"],
+  [/todo|plan/, "Planning", "Updated the plan"],
+  [/compaction/, "Compacting its context", "Compacted its context"],
+];
+const STREAMS = [[/^agent message/, "Writing"], [/^reasoning/, "Thinking"], [/^command output/, "Running a command"], [/^file change/, "Editing files"], [/^plan/, "Planning"]];
+
+// One status line from Symphony, in words: null for bookkeeping nobody needs to see.
+function say(raw) {
+  const msg = one(raw);
+  if (!msg || /token usage updated|rate limits updated|^account |auth token|^[a-z]+(\/[a-zA-Z]+)+$/i.test(msg)) return null;
+  const item = /^item (started|completed): ([a-z ]+)/i.exec(msg);
+  if (item) {
+    const live = item[1] === "started", hit = ITEMS.find(([re]) => re.test(item[2]));
+    return { text: hit ? hit[live ? 1 : 2] : `${live ? "Started" : "Finished"} ${item[2].trim()}`, live };
+  }
+  const stream = /^(.+?) (?:streaming|update|section added)(?::\s*(.*))?$/i.exec(msg), hit = stream && STREAMS.find(([re]) => re.test(stream[1]));
+  if (hit) return { text: hit[1], live: true, detail: stream[2] || null };
+  const n = (re) => re.exec(msg)?.[1];
+  if (/^turn diff updated/.test(msg)) return { text: n(/\((\d+) lines\)/) ? `Diff at ${n(/\((\d+) lines\)/)} lines` : "Diff updated" };
+  if (/^plan updated/.test(msg)) return { text: n(/\((\d+) steps\)/) ? `Plan updated · ${n(/\((\d+) steps\)/)} steps` : "Plan updated" };
+  if (/^turn started/.test(msg)) return { text: "Started a turn", live: true };
+  if (/^turn completed/.test(msg)) return { text: "Finished the turn" };
+  if (/^(thread|session|task) started/.test(msg)) return { text: "Session started" };
+  if (/^mcp startup/.test(msg)) return { text: "Starting its tools", live: true };
+  if (/approval requested|requires user input|waiting for user input/.test(msg)) return { text: "Needs you", detail: msg, tone: "blocked" };
+  if (/failed|error|cancelled/.test(msg)) return { text: msg.replace(/\s*\([^)]*\)/g, ""), tone: "error" };
+  const plain = msg.replace(/\s*\([^)]*\)/g, "");
+  return { text: plain.charAt(0).toUpperCase() + plain.slice(1) };
+}
 
 // Every check on a PR, down to one word.
 function ci(rollup) {
@@ -47,11 +83,11 @@ function stageOf(st, linearState) {
 export class Symphony {
   constructor(cx) {
     this.base = BASE; this.root = ROOT.replace(/^~/, home()); this.dir = DIR.replace(/^~/, home());
-    this.state = null; this.offline = null; this.open = null; this.details = new Map(); this.disk = [];
+    this.state = null; this.offline = null; this.disk = []; this.feed = {}; this.seq = 0;
     this.armed = null; this.rate = 0; this.lastTotal = null; this.lastAt = 0; this.busy = false;
     this.next = 0; this.diskNext = 0; this.fetching = false; this.linearRetry = 0; this.showAll = false;
     this.entering = new Set(); this.present = new Set(); this.seen = new Set(); this.primed = false;
-    this.stages = {}; this.stageBusy = false; this.stageNext = 0; this.pastNext = 0; this.prev = null; this.width = 420;
+    this.stages = {}; this.stageBusy = false; this.stageNext = 0; this.pastNext = 0;
     const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k) ?? d); } catch { return JSON.parse(d); } };
     this.linear = load("sym-linear", "{}"); this.history = load("sym-history", "{}"); this.prs = load("sym-prs", "{}");
     cx.timer.every(1000, (cx) => this.tick(cx));
@@ -86,12 +122,31 @@ export class Symphony {
         this.transitions(this.state, st);
         this.state = st; this.offline = false;
         this.sample();
-        if (this.open) this.loadDetail(this.open, cx);
+        const fresh = this.record(st);
+        for (const k of fresh) this.entering.add(k);
+        if (fresh.length) cx.timer.after(40, (cx) => { for (const k of fresh) this.entering.delete(k); cx.notify(); });
         this.syncLinear(cx);
       } catch { this.state = null; this.offline = true; this.rate = 0; this.lastTotal = null; }
       cx.notify();
       cx.timer.after(20, (cx) => this.settle(cx));
     });
+  }
+
+  // Symphony only reports each run's latest event, so the feed is what each poll saw, newest first;
+  // the same line again in a row counts up instead of stacking. Returns the fade keys of new lines.
+  record(st) {
+    const fresh = [];
+    for (const r of st.running ?? []) {
+      const id = idOf(r), at = r.last_event_at, s = say(r.last_message);
+      if (!s || !at) continue;
+      const list = (this.feed[id] ??= []), top = list[0], key = `${at}|${one(r.last_message)}`;
+      if (top?.key === key) continue;
+      if (top?.text === s.text) { Object.assign(top, { key, at, live: s.live, detail: s.detail ?? top.detail, n: top.n + 1 }); continue; }
+      list.unshift({ ...s, key, at, n: 1, k: ++this.seq });
+      list.length = Math.min(list.length, FEED);
+      fresh.push(`ev-${this.seq}`);
+    }
+    return fresh;
   }
 
   // Runs that leave the running list go to history; the moments worth a ping are announced.
@@ -161,8 +216,11 @@ export class Symphony {
         const before = this.stages[id];
         try {
           const g = await exec("git", ["-C", ws, "rev-list", "--count", "--branches", "--not", "origin/main"], { timeout: 8000 });
+          const d = await exec("sh", ["-c", 'git -C "$1" diff --shortstat "$(git -C "$1" merge-base origin/main HEAD)"', "sh", ws], { timeout: 8000 });
           const prs = await this.prsOf(id).catch(() => before?.prs ?? []);
-          const st = { commits: Number(g.stdout.trim()) || 0, prs, at: Date.now() };
+          const num = (re) => Number(re.exec(d.stdout)?.[1] ?? 0);
+          const diff = d.code === 0 ? { files: num(/(\d+) files? changed/), add: num(/(\d+) insertions?/), del: num(/(\d+) deletions?/) } : null;
+          const st = { commits: Number(g.stdout.trim()) || 0, diff, prs, at: Date.now() };
           if (before) {
             const had = new Set((before.prs ?? []).map((p) => p.number));
             for (const p of prs) if (!had.has(p.number)) this.ping(`${id} opened #${p.number}`, clip(p.title, 120), "success");
@@ -195,16 +253,6 @@ export class Symphony {
         this.disk = r.stdout.split("\n").map((l) => l.trim()).filter(Boolean);
         if (this.pastNext === 0) this.pastNext = Date.now();
       } catch { this.disk = []; }
-      cx.notify();
-    });
-  }
-
-  loadDetail(id, cx) {
-    cx.spawn(async (cx) => {
-      try {
-        const r = await fetch(`${this.base}/api/v1/${encodeURIComponent(id)}`);
-        this.details.set(id, r.status === 200 ? JSON.parse(await r.text()) : { error: `HTTP ${r.status}` });
-      } catch { this.details.set(id, { error: "unreachable" }); }
       cx.notify();
     });
   }
@@ -278,68 +326,44 @@ export class Symphony {
       .child(div().text_size(14).font_semibold().text_color(accent ?? t.foreground).child(value));
   }
 
-  // A ring that breathes out of a dot: width, height, left, top and opacity on one period stay centred.
-  ripple(color, from, to, period) {
-    const off = (to - from) / 2;
-    return div().absolute().rounded_full().border_1().border_color(color)
-      .loop("width", { from, to, period, easing: "ease-out" }).loop("height", { from, to, period, easing: "ease-out" })
-      .loop("left", { from: off, to: 0, period, easing: "ease-out" }).loop("top", { from: off, to: 0, period, easing: "ease-out" })
-      .loop("opacity", { from: .8, to: 0, period, easing: "ease-out" });
-  }
-
+  // A dot with a soft halo breathing out of it. Both sit in flex-centred layers, so the halo grows from the
+  // dot's centre whatever its size; only width, height and opacity move.
   orb(t, mode) {
-    const c = this.color(t, mode), S = 28, live = mode === "work" || mode === "wait";
+    const c = this.color(t, mode), S = 26, live = mode === "work" || mode === "wait", breath = { period: 2600, easing: "ease-in-out" };
+    const layer = () => div().absolute().left(0).top(0).size(S).flex().items_center().justify_center();
     return div().relative().size(S).flex_none()
-      .when(live, (el) => el.child(div().absolute().left(0).top(0).size(S).child(this.ripple(c, 8, S, 2200))))
-      .child(div().absolute().left((S - 10) / 2).top((S - 10) / 2).size(10).rounded_full().bg(c).when(live, (e) => e.loop("opacity", { from: .55, to: 1, period: 1100 })));
+      .when(live, (el) => el.child(layer().child(div().rounded_full().bg(c)
+        .loop("width", { from: 10, to: S, ...breath }).loop("height", { from: 10, to: S, ...breath }).loop("opacity", { from: .45, to: .12, ...breath }))))
+      .child(layer().child(div().size(8).rounded_full().bg(c)));
   }
 
-  // The pipeline: done steps are filled, the current one glows and a comet of light keeps running into it.
-  pipeline(t, stage, W, live) {
-    const N = STAGES.length, NODE = 22, step = (W - NODE) / (N - 1), c = t.working, H = 54;
-    const el = div().relative().w(W).h(H);
-    for (let i = 0; i < N - 1; i++) {
-      const x = i * step + NODE, w = step - NODE, done = i < stage.i, into = i === stage.i - 1;
-      el.child(div().absolute().left(x + 3).top(NODE / 2 - 1).w(w - 6).h(2).rounded(1).bg(done ? c : t.border).overflow_hidden()
-        .when(into && live, (e) => e.bg(c + "40").child(div().absolute().top(0).h(2).w(48)
-          .child(ramp(c, ["10", "30", "60", "a0", "d0", "ff"], 8, 2))
-          .loop("left", { from: -48, to: w - 6, period: 1500, easing: "ease-in" }))));
-    }
-    STAGES.forEach((label, i) => {
-      const x = i * step, done = i < stage.i, cur = i === stage.i;
-      const node = div().absolute().left(x).top(0).size(NODE).rounded_full().flex().items_center().justify_center()
-        .bg(done ? c : cur ? c + "26" : t.chrome).border_1().border_color(done || cur ? c : t.border)
-        .when(done, (e) => e.child(svg("mods/workspace-chrome/check.svg").size(12).text_color(t.chrome)))
-        .when(cur, (e) => e.child(div().size(8).rounded_full().bg(c).when(live, (d) => d.loop("opacity", { from: .45, to: 1, period: 900 }))));
-      if (cur && live) el.child(div().absolute().left(x - 9).top(-9).size(NODE + 18).child(this.ripple(c, NODE, NODE + 18, 1800)));
-      el.child(node);
-      const LW = 76, lx = i === 0 ? 0 : i === N - 1 ? W - LW : x + NODE / 2 - LW / 2;
-      el.child(div().absolute().left(lx).top(NODE + 8).w(LW).text_size(10.5).font_medium()
-        .when(i === 0, (e) => e.text_left()).when(i === N - 1, (e) => e.text_right()).when(i > 0 && i < N - 1, (e) => e.text_center())
-        .text_color(cur ? t.foreground : done ? t.muted : t.dim).child(label));
-    });
-    return el;
-  }
-
-  // A soft band of light that sweeps across the card while it works.
-  sheen(t, W) {
+  // Four equal segments laid out by flex, each label under its own segment: done ones filled, the current one pulsing.
+  stepper(t, stage) {
     const c = t.working;
-    return div().absolute().top(0).left(0).w(W + 28).h_full().overflow_hidden()
-      .child(h_flex().absolute().top(0).h_full().w(180).loop("left", { from: -180, to: W + 28, period: 4200, easing: "ease-in-out" })
-        .children(["03", "05", "08", "0b", "0e", "11", "13", "13", "11", "0e", "0b", "08", "05", "03"].map((a) => div().h_full().w(13).flex_none().bg(c + a))));
+    return h_flex().gap(6).children(STAGES.map((label, i) => {
+      const done = i < stage.i, cur = i === stage.i;
+      return v_flex().flex_1().min_w(0).gap(7)
+        .child(div().relative().h(4).rounded(2).overflow_hidden().bg(done ? c : cur ? c + "2e" : t.raised)
+          .when(cur, (e) => e.child(div().absolute().left(0).top(0).size_full().rounded(2).bg(c).loop("opacity", { from: .3, to: 1, period: 1600 }))))
+        .child(h_flex().gap(5).items_center().min_w(0)
+          .when(done, (e) => e.child(svg("mods/workspace-chrome/check.svg").size(11).flex_none().text_color(c)))
+          .when(cur, (e) => e.child(div().size(6).rounded_full().flex_none().bg(c)))
+          .child(div().truncate().text_size(11).font_medium().text_color(cur ? t.foreground : done ? t.muted : t.dim).child(label)));
+    }));
   }
 
   header(t) {
-    const mode = this.mode(), retry = this.state?.retrying?.[0], blocked = this.state?.blocked?.[0];
-    const title = { wait: `Retrying ${retry ? idOf(retry) : ""}`, blocked: `${blocked ? idOf(blocked) : ""} is blocked`,
+    const mode = this.mode(), n = this.running().length, retry = this.state?.retrying?.[0], blocked = this.state?.blocked?.[0];
+    const title = { work: "Working", wait: `Retrying ${retry ? idOf(retry) : ""}`, blocked: `${blocked ? idOf(blocked) : ""} is blocked`,
       idle: "Watching Linear", offline: "Symphony is off", loading: "Connecting…" }[mode];
-    const sub = { wait: `attempt ${retry?.attempt ?? "?"} · next ${until(retry?.due_at)}`, blocked: "It needs you before it can go on",
+    const sub = { work: `${n} ticket${n > 1 ? "s" : ""} in flight${this.rate >= 1 ? ` · ${tok(this.rate)} tokens/s` : ""}`,
+      wait: `attempt ${retry?.attempt ?? "?"} · next ${until(retry?.due_at)}`, blocked: "It needs you before it can go on",
       idle: "Picks up LIV tickets labelled symphony and assigned to you", offline: "Nothing is polling Linear", loading: "" }[mode];
-    return h_flex().gap(12).items_center().p(14).mx(12).mt(12).rounded(12).bg(t.surface).border_1().border_color(t.border)
+    return h_flex().gap(12).items_center().px(14).py(12).mx(12).mt(12).rounded(12).bg(t.surface).border_1().border_color(t.border)
       .child(this.orb(t, mode))
       .child(v_flex().flex_1().min_w(0).gap(2)
-        .child(div().truncate().text_size(14).font_semibold().text_color(t.foreground).child(title))
-        .child(div().truncate().text_size(11.5).text_color(t.muted).child(sub)))
+        .child(div().truncate().text_size(13.5).font_semibold().text_color(t.foreground).child(title))
+        .when(Boolean(sub), (el) => el.child(div().truncate().text_size(11.5).text_color(t.muted).child(sub))))
       .child(this.controls(t));
   }
 
@@ -351,53 +375,60 @@ export class Symphony {
       .when(Boolean(term), (el) => el.child(this.ghost(t, "sy-stop", this.armed?.key === "stop" ? "Confirm" : "Stop", (_e, cx) => this.stop(cx), this.armed?.key === "stop" ? t.ansi1 : null)));
   }
 
-  // The running ticket, as the hero of the tab.
+  // The running ticket: what it is, where it stands, what the agent is doing right now.
   hero(t, r) {
-    const id = idOf(r), L = this.linear[id], st = this.stages[id], stage = stageOf(st, L?.state), tokens = r.tokens ?? {}, open = this.open === id;
-    const W = Math.max(200, this.width - 24 - 34), evAge = r.last_event_at ? Date.now() - Date.parse(r.last_event_at) : null, quiet = evAge != null && evAge > 90e3;
-    return v_flex().id(`run-${id}`).relative().mx(12).mt(12).rounded(14).bg(t.surface).border_1().border_color(t.working + "55").overflow_hidden()
-      .child(this.sheen(t, W))
-      .child(v_flex().relative().gap(16).p(16)
-        .child(h_flex().gap(10).items_start()
-          .child(this.orb(t, "work"))
-          .child(v_flex().flex_1().min_w(0).gap(5)
-            .child(h_flex().gap(6).items_center()
-              .child(div().text_size(11).text_color(t.working).font_medium().child("Working on"))
-              .child(this.chip(t, id, t.accent, `rl-${id}`, () => this.openLinear(id)))
-              .when(Boolean(L?.state), (el) => el.child(this.chip(t, L.state, t.muted))))
-            .child(div().text_size(14).font_semibold().line_height(1.4).whitespace_normal().text_color(t.foreground).child(L?.title ?? (this.fetching ? "Loading the ticket…" : id))))
-          .child(this.controls(t)))
-        .child(v_flex().gap(4)
-          .child(this.pipeline(t, stage, W, true))
-          .child(h_flex().gap(6).items_center().flex_wrap()
-            .child(div().text_size(11).text_color(t.muted).child(st ? stage.note : "Looking at the workspace…"))
-            .children((st?.prs ?? []).slice(0, 3).map((p) => this.prChip(t, p, id)))))
-        .child(h_flex().gap(10).items_start().p(11).rounded(10).bg(t.chrome)
-          .child(div().w(12).flex_none().text_size(12).text_color(quiet ? t.ansi3 : t.working).child(quiet ? "◌" : "").when(!quiet, (e) => e.frames(SPIN, 80)))
-          .child(v_flex().flex_1().min_w(0).gap(3)
-            .child(h_flex().gap(6).items_center()
-              .child(div().text_size(11.5).font_medium().text_color(t.foreground).child(human(r.last_event)))
-              .child(div().text_size(10.5).text_color(quiet ? t.ansi3 : t.dim).child(evAge == null ? "" : quiet ? `quiet for ${span(evAge)}` : ago(r.last_event_at))))
-            .when(Boolean(r.last_message), (el) => el.child(div().text_size(11.5).line_height(1.45).whitespace_normal().text_color(t.muted).child(clip(one(r.last_message), 200))))))
-        .child(h_flex().gap(10)
-          .child(this.stat(t, "Turn", `${Math.min(r.turn_count ?? 0, MAX_TURNS)}/${MAX_TURNS}`))
-          .child(this.stat(t, "Time", span(Date.now() - Date.parse(r.started_at ?? Date.now()))))
-          .child(this.stat(t, "Tokens", tok(tokens.total_tokens)))
-          .child(this.stat(t, "Now", this.rate >= 1 ? `${tok(this.rate)}/s` : "–", this.rate >= 1 ? t.working : t.dim)))
-        .child(h_flex().gap(6)
-          .child(this.ghost(t, `ow-${id}`, "Open workspace", () => this.openWorkspace(id, r.workspace_path)))
-          .child(this.ghost(t, `ev-${id}`, open ? "Hide events" : "Events", (_e, cx) => { this.open = open ? null : id; if (this.open) this.loadDetail(id, cx); cx.notify(); })))
-        .when(open, (el) => el.child(this.events(t, id))));
+    const id = idOf(r), L = this.linear[id], st = this.stages[id], stage = stageOf(st, L?.state), d = st?.diff;
+    const evAge = r.last_event_at ? Date.now() - Date.parse(r.last_event_at) : null, quiet = evAge != null && evAge > QUIET;
+    return v_flex().id(`run-${id}`).gap(16).p(16).mx(12).mt(10).rounded(14).bg(t.surface).border_1().border_color(t.working + "40")
+      .child(v_flex().gap(6)
+        .child(h_flex().gap(6).items_center()
+          .child(this.chip(t, id, t.accent, `rl-${id}`, () => this.openLinear(id)))
+          .when(Boolean(L?.state), (el) => el.child(this.chip(t, L.state, t.muted)))
+          .child(div().flex_1())
+          .child(div().flex_none().text_size(11).text_color(t.dim).child(span(Date.now() - Date.parse(r.started_at ?? Date.now())))))
+        .child(div().text_size(15).font_semibold().line_height(1.35).whitespace_normal().text_color(t.foreground).child(L?.title ?? (this.fetching ? "Loading the ticket…" : id))))
+      .child(v_flex().gap(9)
+        .child(this.stepper(t, stage))
+        .child(h_flex().gap(6).items_center().flex_wrap()
+          .when(!st?.prs?.length, (el) => el.child(div().text_size(11).text_color(t.muted).child(st ? stage.note : "Looking at the workspace…")))
+          .children((st?.prs ?? []).slice(0, 3).map((p) => this.prChip(t, p, id)))))
+      .child(v_flex().gap(10).px(12).pt(10).pb(12).rounded(10).bg(t.chrome)
+        .child(h_flex().gap(6).items_center()
+          .child(div().text_size(10.5).font_semibold().text_color(t.dim).child("NOW"))
+          .child(div().flex_1())
+          .when(quiet, (el) => el.child(div().text_size(10.5).text_color(t.ansi3).child(`quiet for ${span(evAge)}`))))
+        .child(this.activity(t, id, quiet)))
+      .child(h_flex().gap(10)
+        .child(this.stat(t, "Turn", `${Math.min(r.turn_count ?? 0, MAX_TURNS)}/${MAX_TURNS}`))
+        .child(this.stat(t, "Tokens", tok(r.tokens?.total_tokens ?? 0)))
+        .child(this.stat(t, "Rate", this.rate >= 1 ? `${tok(this.rate)}/s` : "–", this.rate >= 1 ? t.working : t.dim))
+        .child(this.stat(t, "Changes", d ? `+${tok(d.add)} −${tok(d.del)}` : "–", d ? t.foreground : t.dim)))
+      .child(h_flex().gap(6).items_center()
+        .child(this.ghost(t, `ow-${id}`, "Open workspace", () => this.openWorkspace(id, r.workspace_path)))
+        .when(Boolean(d?.files), (el) => el.child(div().flex_1()).child(div().text_size(10.5).text_color(t.dim).child(`${d.files} file${d.files > 1 ? "s" : ""} · ${st.commits} commit${st.commits === 1 ? "" : "s"}`))));
   }
 
-  events(t, id) {
-    const d = this.details.get(id);
-    if (!d) return div().text_size(11).text_color(t.dim).child("Loading…");
-    if (d.error) return div().text_size(11).text_color(t.blocked).child(d.error);
-    return v_flex().gap(4).children((d.recent_events ?? []).slice(-8).reverse().map((e, i) => h_flex().id(`e-${id}-${i}`).gap(8).items_start()
-      .child(div().w(54).flex_none().text_size(10.5).text_color(t.dim).child(ago(e.at)))
-      .child(div().flex_1().min_w(0).text_size(11).line_height(1.4).whitespace_normal().text_color(t.muted)
-        .child(`${human(e.event)}${e.message ? " — " + clip(one(e.message), 120) : ""}`))));
+  // The last few things the agent did, newest on top, threaded on a line; the newest spins while it is still going.
+  activity(t, id, quiet) {
+    const list = (this.feed[id] ?? []).slice(0, 5);
+    const tone = (e) => (e.tone === "blocked" ? t.blocked : e.tone === "error" ? t.ansi1 : t.working);
+    const spinner = (c) => div().text_size(12).text_color(c).frames(SPIN, 80).child(SPIN[0]);
+    if (!list.length) return h_flex().gap(10).items_center().child(div().w(14).flex().justify_center().child(spinner(t.working)))
+      .child(div().text_size(11.5).text_color(t.dim).child("Waiting for its first move…"));
+    return v_flex().children(list.map((e, i) => {
+      const head = i === 0, last = i === list.length - 1;
+      return this.fade(`ev-${e.k}`, h_flex().id(`ev-${e.k}`).gap(10).items_stretch()
+        .child(v_flex().w(14).flex_none().items_center()
+          .child(div().h(18).flex_none().flex().items_center().justify_center()
+            .child(head && e.live && !quiet ? spinner(tone(e)) : div().size(head ? 7 : 5).rounded_full().bg(head ? tone(e) : t.input)))
+          .when(!last, (el) => el.child(div().w(1).flex_1().bg(t.border))))
+        .child(v_flex().flex_1().min_w(0).gap(3).pb(last ? 0 : 8)
+          .child(h_flex().h(18).gap(8).items_center()
+            .child(div().flex_1().min_w(0).truncate().text_size(12).font_medium().text_color(head ? t.foreground : t.muted).child(e.text))
+            .when(e.n > 1, (el) => el.child(div().flex_none().text_size(10.5).text_color(t.dim).child(`×${e.n}`)))
+            .child(div().flex_none().text_size(10.5).text_color(t.dim).child(Date.now() - Date.parse(e.at) < 5000 ? "now" : ago(e.at))))
+          .when(head && Boolean(e.detail), (el) => el.child(div().text_size(11.5).line_height(1.45).whitespace_normal().text_color(t.muted).child(clip(one(e.detail), 180))))));
+    }));
   }
 
   issueCard(t, r, tone, label, detail) {
@@ -447,7 +478,7 @@ export class Symphony {
       .when(Boolean(tot), (el) => el.child(h_flex().gap(10)
         .child(this.stat(t, "Tokens", tok(tot.total_tokens)))
         .child(this.stat(t, "In / out", `${tok(tot.input_tokens)} / ${tok(tot.output_tokens)}`))
-        .child(this.stat(t, "Agent time", span((tot.seconds_running ?? 0) * 1000)))))
+        .when(tot.seconds_running > 0, (e) => e.child(this.stat(t, "Agent time", span(tot.seconds_running * 1000))))))
       .when(Boolean(rl?.primary || rl?.secondary), (el) => el.child(h_flex().gap(18).flex_wrap().pt(10).border_t(1).border_color(t.border)
         .when(Boolean(rl.primary), (e) => e.child(this.meter(t, "Codex 5h", rl.primary.usedPercent)))
         .when(Boolean(rl.secondary), (e) => e.child(this.meter(t, "Week", rl.secondary.usedPercent))))));
@@ -474,7 +505,7 @@ export class Symphony {
   }
 
   view(t) {
-    const s = this.state, running = this.running(), out = running.length ? running.map((r) => this.hero(t, r)) : [this.header(t)];
+    const s = this.state, out = [this.header(t), ...this.running().map((r) => this.hero(t, r))];
     const u = s ? this.usage(t) : null;
     if (u) out.push(u);
     if (s) {

@@ -1,0 +1,74 @@
+schema = 1
+id = "acc"
+name = "Agent Command Center"
+version = "0.1.0"
+description = "The herdr agent command center on Tern: review, tasks, automation, routing, break, notes and chrome."
+icon = "app-omp"
+host = "host.luau"
+window = "window.luau"
+styles = [
+	"lib/core.css",
+	"mods/review/style.css",
+	"mods/today/style.css",
+	"mods/automation/style.css",
+	"mods/routing/style.css",
+	"mods/break/style.css",
+	"mods/md/style.css",
+	"mods/note/style.css",
+	"mods/newmenu/style.css",
+	"mods/tabs/style.css",
+]
+
+[[blocks]]
+id = "prs"
+title = "Pull requests"
+icon = "pull"
+palette = false
+
+[[blocks]]
+id = "review"
+title = "Review"
+icon = "eye"
+palette = false
+
+[[blocks]]
+id = "today"
+title = "Tasks"
+icon = "list-checks"
+palette = false
+
+[[blocks]]
+id = "automation"
+title = "Automation"
+icon = "bolt"
+palette = false
+
+[[blocks]]
+id = "routing"
+title = "Routing"
+icon = "flow"
+palette = false
+
+[[blocks]]
+id = "break"
+title = "Break"
+icon = "play"
+palette = false
+
+[[blocks]]
+id = "md"
+title = "Markdown"
+icon = "markdown"
+palette = false
+
+[[blocks]]
+id = "note"
+title = "Note"
+icon = "note"
+palette = false
+
+[[blocks]]
+id = "newmenu"
+title = "New"
+icon = "plus"
+palette = false

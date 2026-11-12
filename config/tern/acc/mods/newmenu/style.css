@@ -1,0 +1,21 @@
+.sf-main[data-surface='plugin.acc.newmenu'] { padding: 5px; font-family: var(--sans); background: var(--bg); }
+[data-role='acc.newmenu.menu'] { width: 250px; max-width: 100%; min-height: 400px; max-height: 543px; overflow-y: auto; }
+[data-role='acc.newmenu.row'], [data-role='acc.newmenu.uninstalled'] {
+  display: flex; align-items: center; gap: 10px; min-height: 31px; padding: 0 9px;
+  border-radius: 7px; font-size: 12.8px; color: var(--t1); cursor: pointer;
+}
+[data-role='acc.newmenu.row']:hover { background: var(--l1); }
+[data-role='acc.newmenu.uninstalled'] { color: var(--t4); cursor: default; }
+[data-role='acc.newmenu.hint'] { font-size: 11px; color: var(--t4); flex-shrink: 0; }
+[data-role='acc.newmenu.section'] { padding: 8px 9px 4px; color: var(--t4); font-size: 11px; }
+[data-role='acc.newmenu.icon'], [data-role='acc.newmenu.omp'] { width: 14px; height: 14px; flex-shrink: 0; }
+[data-role='acc.newmenu.omp'] { background-image: url("mods/tabs/omp.svg"); background-position: center; background-size: contain; background-repeat: no-repeat; }
+[data-role='acc.newmenu.omp'] > svg { opacity: 0; }
+[data-role='acc.newmenu.form'] { width: 430px; max-width: 100%; padding: 12px; }
+[data-role='acc.newmenu.heading'] { color: var(--t1); font-size: 14px; font-weight: 600; padding: 4px 9px; }
+[data-role='acc.newmenu.input'] { font-family: var(--mono); }
+[data-role='acc.newmenu.usage'] { width: 340px; max-width: 100%; padding: 12px; font-size: 12px; }
+[data-role='acc.newmenu.provider'] { padding: 6px 0; }
+[data-role='acc.newmenu.limit'] { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+[data-role='acc.newmenu.limit'] .sf-meter { width: 110px; flex: none; }
+[data-role='acc.newmenu.foot'] { font-size: 10.5px; line-height: 15px; }

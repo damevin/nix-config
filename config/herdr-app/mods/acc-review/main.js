@@ -67,6 +67,7 @@ export default class Review extends View {
 
   tick(cx) {
     const t = Date.now(), vis = this.visible();
+    if (this.pending.length) this.settle(cx); // blocks that arrived from async loads, not a click, would stay at opacity 0
     if (vis) {
       const sig = (panes() ?? []).filter((p) => p.status && p.branch).map((p) => `${p.branch}:${p.status}`).sort().join("|");
       if (sig !== this.agentSig) { this.agentSig = sig; cx.notify(); }
@@ -123,7 +124,12 @@ export default class Review extends View {
       }
       const changed = JSON.stringify([eli5, review]) !== JSON.stringify([this.files.eli5, this.files.review]);
       this.files = { eli5, review };
-      if (changed) { this.cache = {}; cx.notify(); }
+      if (changed) {
+        this.cache = {};
+        const pr = this.prs.find((p) => p.number === this.open);
+        if (pr) await this.loadFiles(pr);
+        cx.notify(); this.settle(cx);
+      }
     } catch {}
   }
 
@@ -133,6 +139,9 @@ export default class Review extends View {
   }
   active() { return this.prs.filter((p) => !this.stale(p)); }
   id(pr) { return `${pr.number}-${pr.headRefOid.slice(0, 7)}`; }
+  // The terminal stays live on "Press Enter to close", so the review file's status says when it is really over.
+  reviewing(pr) { const tm = this.term(pr), st = this.files.review[this.id(pr)]?.status; return tm && (!st || st === "running") ? tm : null; }
+  async loadFiles(pr) { for (const kind of ["eli5.md", "review.json"]) await this.text(`${this.out}/${this.id(pr)}.${kind}`); }
   term(pr) { return (terminals() ?? []).find((x) => x.state === "live" && (x.foreground?.argv ?? x.argv ?? []).join(" ").includes(`review.py review ${pr.number}`)); }
 
   async text(path) {
@@ -157,10 +166,7 @@ export default class Review extends View {
     this.open = pr.number; this.tab = this.mode === "mine" ? "desc" : "eli5"; cx.notify(); this.settle(cx);
     if (this.mode === "mine") this.loadThreads(pr, cx); else this.explain(pr, cx);
     this.loadConvo(pr, cx);
-    cx.spawn(async (cx) => {
-      for (const kind of ["eli5.md", "review.json"]) await this.text(`${this.out}/${this.id(pr)}.${kind}`);
-      cx.notify();
-    });
+    cx.spawn(async (cx) => { await this.loadFiles(pr); cx.notify(); });
   }
 
   loadConvo(pr, cx) {
@@ -291,7 +297,8 @@ export default class Review extends View {
   }
 
   startReview(pr) {
-    if (this.term(pr)) return;
+    const tm = this.reviewing(pr);
+    if (tm) return run("agent.focus", { terminal: tm.address });
     const argv = ["python3", `${this.dir}/review.py`, "review", String(pr.number)], known = spaces().find((s) => s.name === "review" && !s.machine);
     if (known) run("tab.new", { space: known.id, name: `review #${pr.number}`, folder: this.dir, argv });
     else run("space.new", { name: "review", folder: this.dir, argv });
@@ -360,7 +367,7 @@ export default class Review extends View {
     if (pr.reviewDecision === "APPROVED") out.push(this.chip(t, "approved", t.ansi2));
     if (pr.reviewDecision === "CHANGES_REQUESTED") out.push(this.chip(t, "changes requested", t.ansi3));
     if (this.mode === "mine" && this.ready(pr)) out.push(this.chip(t, "ready to merge", t.ansi2, t.selected));
-    const rv = this.files.review[this.id(pr)], tm = this.term(pr);
+    const rv = this.files.review[this.id(pr)], tm = this.reviewing(pr);
     if (tm) out.push(h_flex().gap(5).items_center().child(this.dot(t, t.working, true)).child(div().text_size(10.5).text_color(t.working).child("reviewing")));
     else if (rv?.status === "ok") out.push(this.chip(t, rv.n ? `${rv.n} ${this.mode === "mine" ? "notes" : "drafts"}${rv.blockers ? ` · ${rv.blockers} blocker` : ""}` : "review clean", rv.blockers ? t.ansi1 : t.accent));
     return out;
@@ -432,6 +439,7 @@ export default class Review extends View {
       const text = this.cache[`${this.out}/${key}.eli5.md`];
       if (text) return this.appear(`eli5-${key}`, v_flex().p(14).rounded(10).bg(t.surface).border_1().border_color(t.border).child(this.md(t, `eli5-md-${key}`, text)));
       if (this.explaining.has(key)) return v_flex().p(14).gap(8).rounded(10).bg(t.surface).border_1().border_color(t.border)
+        .child(div().text_size(11.5).text_color(t.muted).child("Sonnet is reading the diff, about 30 seconds…"))
         .children([0.9, 0.75, 0.82, 0.6].map((w, i) => div().h(10).rounded(5).bg(t.raised).w(Math.round(w * 300)).loop("opacity", { from: .35, to: .9, period: 1300 + i * 120 })));
       return v_flex().p(14).gap(8).items_start().child(div().text_size(12).text_color(t.muted).child("No explanation yet."))
         .child(this.button(t, "eli5-go", "Explain this PR", (_e, cx) => this.explain(pr, cx)));
@@ -487,9 +495,9 @@ export default class Review extends View {
     }
     const raw = this.cache[`${this.out}/${key}.review.json`];
     let rv = null; try { rv = raw ? JSON.parse(raw) : null; } catch {}
-    if (this.term(pr)) return v_flex().p(14).gap(10).rounded(10).bg(t.surface).border_1().border_color(t.border)
+    if (this.reviewing(pr)) return v_flex().p(14).gap(10).rounded(10).bg(t.surface).border_1().border_color(t.border)
       .child(h_flex().gap(8).items_center().child(this.dot(t, t.working, true)).child(div().text_size(12).text_color(t.foreground).child("The reviewer is reading the frontend diff…")))
-      .child(this.button(t, "rv-open", "Watch it", () => run("agent.focus", { terminal: this.term(pr).address })));
+      .child(this.button(t, "rv-open", "Open the review terminal", () => run("agent.focus", { terminal: this.reviewing(pr).address })));
     if (!rv) return v_flex().p(14).gap(8).items_start().child(div().text_size(12).text_color(t.muted).child(this.mode === "mine" ? "No self-review for this commit yet. It reads your frontend diff like a reviewer would, nothing gets posted." : "No review draft for this commit yet."))
       .child(this.button(t, "rv-go", this.mode === "mine" ? "Self-review" : "Review frontend", () => this.startReview(pr), "primary"));
     if (rv.status === "error") return v_flex().p(14).gap(8).child(div().text_size(12).text_color(t.blocked).child(rv.error ?? "The review failed."))
@@ -578,7 +586,7 @@ export default class Review extends View {
   }
 
   actions(t, pr) {
-    const rv = this.files.review[this.id(pr)], tm = this.term(pr), b = this.busy;
+    const rv = this.files.review[this.id(pr)], tm = this.reviewing(pr), b = this.busy;
     const review = tm ? this.button(t, "rv-watch", "Reviewing…", () => run("agent.focus", { terminal: tm.address }))
       : this.button(t, "rv", this.mode === "mine" ? (rv?.status === "ok" ? "Self-review again" : "Self-review") : (rv?.status === "ok" ? "Review again" : "Review frontend"), () => this.startReview(pr));
     if (this.mode === "review") return h_flex().gap(6).flex_wrap().child(this.button(t, "diff", "View diff", () => this.diff(pr), "primary")).child(review);

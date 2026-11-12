@@ -1,0 +1,4 @@
+1:03PM INFO <cmd/root.go:200> Logging to debug.log
+1:03PM INFO <cmd/root.go:220> found git repo at path path=/Users/raphaeldamevin/nix-config
+1:03PM INFO <cmd/root.go:227> found github repo at current path host=github.com owner=damevin name=nix-config
+1:03PM FATA <cmd/root.go:263> fatal error during run err="bubbletea: error opening TTY: bubbletea: could not open TTY: open /dev/tty: device not configured"

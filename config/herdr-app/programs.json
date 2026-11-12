@@ -1,6 +1,5 @@
 {
   "programs": {
-    "omp": { "name": "OMP", "tile": "#6d5efc", "color": "#ffffff", "run": ["omp"] },
-    "omp-resume": { "name": "OMP (resume)", "tile": "#6d5efc", "color": "#ffffff", "run": ["omp", "--resume"] }
+    "omp": {"name": "omp", "run": ["omp"], "tile": "#6d5efc", "color": "#ffffff", "icon": "mods/acc-tabs/omp.svg", "tint": false, "match": ["omp", "secretspec"]}
   }
 }

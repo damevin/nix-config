@@ -434,7 +434,7 @@ export default class Automation extends View {
 
   render() {
     const t = theme(), zoom = Number(settings().zoom ?? 1) || 1;
-    return v_flex().id("au-root").size_full().bg(t.chrome).on_size_change((s) => { this.width = s.width / zoom; this.sym.width = this.width; })
+    return v_flex().id("au-root").size_full().bg(t.chrome).on_size_change((s) => { this.width = s.width / zoom; })
       .child(h_flex().relative().h(48).px(12).items_center().justify_center().border_b(1).border_color(t.border)
         .child(this.segmented(t))
         .child(div().absolute().right(12).top(17).text_size(11).text_color(t.dim).child(Object.values(this.runs).some((r) => r.status === "running") ? "running…" : "")))

@@ -1,0 +1,39 @@
+.sf-main[data-surface='plugin.acc.note'] {
+  height: 100%;
+  min-height: 0;
+  padding: 14px;
+  gap: 10px;
+  overflow: hidden;
+  color: var(--t1);
+  font-family: var(--sans);
+  font-size: 13px;
+}
+[data-role='acc.note.title'] {
+  min-height: 32px;
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border: 1px solid var(--l1);
+  border-radius: 6px;
+  font-family: var(--sans);
+  font-size: 15px;
+}
+[data-role='acc.note.body'] {
+  min-height: 0;
+  border: 1px solid var(--l1);
+  border-radius: 6px;
+  padding: 8px;
+  font-family: var(--mono);
+  overflow: auto;
+}
+[data-role='acc.note.body'] .sf-ed-scroll { height: 100%; overflow: auto; }
+[data-role='acc.note.footer'] { flex: 0 0 auto; flex-wrap: wrap; }
+[data-role='acc.note.destination'] { color: var(--t4); font-size: 11px; }
+[data-role='acc.note.open'], [data-role='acc.note.save'] {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--l1);
+  border-radius: 6px;
+  font-size: 13px;
+}
+[data-role='acc.note.open']:hover, [data-role='acc.note.save']:hover { background: var(--chip-bg); }
+[data-role='acc.note.error'] { color: var(--bad); font-size: 12px; }

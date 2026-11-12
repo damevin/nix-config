@@ -1,0 +1,353 @@
+/* Routing panel (acc.routing). The diagram is SVG blobs; the motion is the fixed keyframes below
+   (see mods/routing/motion.luau). Durations and delays come from the generated d<ms>/s<ms> classes. */
+
+.rt-root {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+.rt-head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+}
+.rt-title { font-size: 12px; font-weight: 600; color: var(--t1); }
+.rt-status { font-size: 11px; color: var(--t3); }
+.rt-status.rt-warn { color: var(--warn); }
+
+.rt-modes { display: flex; gap: 8px; }
+button.rt-mode {
+	flex: 1 1 0;
+	min-width: 0;
+	height: 44px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 3px;
+	padding: 6px 4px;
+	border-radius: 8px;
+	border: 1px solid var(--l2);
+	background: transparent;
+	box-shadow: none;
+	cursor: pointer;
+	transition: background 120ms ease, border-color 120ms ease;
+}
+button.rt-mode:hover { background: var(--card); }
+button.rt-mode.on { border-color: var(--t1); background: var(--card); }
+.rt-mode-label { font-size: 12px; font-weight: 600; color: var(--t3); }
+button.rt-mode.on .rt-mode-label { color: var(--t1); }
+.rt-mode-hint { font-size: 9.5px; color: var(--t3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+.rt-stage { position: relative; flex: none; width: 100%; line-height: 0; }
+[data-role^='acc.routing.'] { border-radius: 0; box-shadow: none; background: transparent; cursor: default; }
+[data-role='acc.routing.base'] { position: relative; width: 100%; }
+[data-role='acc.routing.layer'] {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
+}
+[data-role^='acc.routing.'] .sf-img-svg { width: 100%; height: 100%; display: block; }
+
+.rt-tasks { display: flex; flex-direction: column; }
+.rt-tasks-head {
+	font-size: 10px;
+	font-weight: 600;
+	color: var(--t3);
+	padding-bottom: 2px;
+	border-bottom: 1px solid var(--l2);
+}
+.rt-tasks-scroll { display: flex; flex-direction: column; }
+.rt-task { display: flex; flex-direction: column; gap: 3px; padding: 7px 0; border-bottom: 1px solid var(--l2); }
+.rt-task-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.rt-task-head [data-role='acc.dot'] { width: 7px; height: 7px; }
+.rt-task-title { flex: 1 1 0; min-width: 0; font-size: 12px; font-weight: 600; color: var(--t1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rt-task-meta { flex: none; font-size: 10px; color: var(--t3); }
+.rt-indent { padding-left: 13px; }
+.rt-indent2 { padding-left: 14px; }
+.rt-sub-block { display: flex; flex-direction: column; gap: 2px; padding-left: 13px; }
+.rt-sub-head { display: flex; gap: 5px; min-width: 0; font-size: 11px; }
+.rt-branch { flex: none; color: var(--t3); }
+.rt-sub-name { min-width: 0; color: var(--t1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rt-sub-n { flex: none; color: var(--t3); }
+.rt-more { padding-left: 13px; font-size: 10.5px; color: var(--t3); }
+.rt-empty { padding: 8px 0; font-size: 11px; color: var(--t3); }
+.rt-req { display: flex; align-items: center; gap: 5px; min-width: 0; font-size: 10.5px; }
+.rt-arrow { flex: none; color: var(--t3); }
+.rt-chip { flex: none; padding: 0 5px; border-radius: 4px; background: var(--l1); color: var(--t3); }
+.rt-prov { flex: none; color: var(--t1); }
+.rt-prov.rt-bad { color: #e5534b; }
+.rt-served { flex: 1 1 0; min-width: 0; color: var(--t3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rt-meta { flex: none; color: var(--t3); }
+
+/* Diagram art */
+.rt-card { fill: var(--card); stroke: var(--l2); stroke-width: 1px; }
+.rt-hub { stroke: var(--t1); }
+.rt-hit { stroke: #e5534b; }
+.rt-wire { fill: none; stroke: var(--l2); stroke-width: 1.5px; }
+.rt-flow { fill: none; stroke-width: 1.5px; stroke-dasharray: 3 5; animation: rt-dash 700ms linear infinite; }
+.rt-name { fill: var(--t1); font-family: var(--sans); font-size: 13px; font-weight: 600; }
+.rt-sub { fill: var(--t3); font-family: var(--sans); font-size: 10.5px; }
+.rt-model { font-size: 11px; }
+.rt-badge { fill: #ffffff; font-family: var(--sans); font-size: 10.5px; font-weight: 600; }
+.rt-ink, .rt-wf { fill: var(--t1); }
+.rt-wf { fill-opacity: .45; transform-origin: -11.896px -3.2px; animation-delay: -30ms; }
+.rt-wn { transform-origin: -12.374px -2.8px; }
+.rt-belly { fill: var(--card); }
+.rt-bar { fill: none; stroke: var(--card); stroke-width: 1.3px; }
+.rt-ring { fill: var(--card); stroke-width: 2.25px; }
+.rt-ring.rt-err { fill-opacity: 1; }
+.rt-pulse { fill: none; stroke: var(--t2); stroke-width: 1.5px; opacity: 0; animation: rt-pulse 400ms ease-in-out both; }
+.rt-shake { animation: rt-shake 450ms step-end both; }
+
+.rt-wing { animation-name: rt-flap; animation-duration: 420ms; animation-iteration-count: infinite; animation-timing-function: linear; }
+.rt-leg { opacity: 0; animation-name: rt-win; animation-fill-mode: forwards; animation-iteration-count: 1; animation-timing-function: linear; }
+.rt-wx, .rt-vx { animation-name: rt-wx; }
+.rt-wy { animation-name: rt-wy; }
+.rt-vy { animation-name: rt-vy; }
+.rt-wx, .rt-wy, .rt-vx, .rt-vy, .rt-aim { animation-fill-mode: both; animation-iteration-count: 1; }
+.rt-wx { animation-timing-function: cubic-bezier(.3333, .5, .6667, .5); }
+.rt-wy { animation-timing-function: cubic-bezier(.3333, 0, .6667, 1); }
+.rt-vx { animation-timing-function: cubic-bezier(.3333, .2045, .6667, .7955); }
+.rt-aim { animation-timing-function: ease-in-out; }
+.rt-come { animation: rt-come 300ms cubic-bezier(.3333, .6667, .6667, 1) both; }
+.rt-rest { opacity: 0; animation-name: rt-rest; animation-duration: 1ms; animation-fill-mode: forwards; animation-timing-function: linear; }
+.rt-awaywin { opacity: 0; animation-name: rt-awaywin; animation-duration: 450ms; animation-fill-mode: forwards; animation-timing-function: linear; }
+.rt-away { animation-name: rt-away; animation-duration: 450ms; animation-fill-mode: both; animation-timing-function: cubic-bezier(.3, 0, .2, 1); }
+.rt-held { animation: rt-held 1200ms ease-in-out infinite; }
+.a-via { animation-name: rt-aim-via; }
+.a-m6 { animation-name: rt-aim-m6; }
+.a-p6 { animation-name: rt-aim-p6; }
+.a-m12 { animation-name: rt-aim-m12; }
+.a-p12 { animation-name: rt-aim-p12; }
+.a-m18 { animation-name: rt-aim-m18; }
+.a-p18 { animation-name: rt-aim-p18; }
+.a-m24 { animation-name: rt-aim-m24; }
+.a-p24 { animation-name: rt-aim-p24; }
+
+@keyframes rt-wx { from { transform: translate(0, 0); } to { transform: translate(1px, 0); } }
+@keyframes rt-wy { from { transform: translate(0, 0); } to { transform: translate(0, 1px); } }
+@keyframes rt-vy {
+	0% { transform: translate(0, 0); animation-timing-function: cubic-bezier(.3333, .6667, .6667, 1); }
+	50% { transform: translate(0, -1px); animation-timing-function: cubic-bezier(.3333, 0, .6667, .3333); }
+	100% { transform: translate(0, 0); }
+}
+@keyframes rt-aim-via { 0% { transform: rotate(-24deg); } 50% { transform: rotate(0deg); } 100% { transform: rotate(24deg); } }
+@keyframes rt-aim-m6 { 0% { transform: rotate(0deg); } 50% { transform: rotate(-6deg); } 100% { transform: rotate(0deg); } }
+@keyframes rt-aim-p6 { 0% { transform: rotate(0deg); } 50% { transform: rotate(6deg); } 100% { transform: rotate(0deg); } }
+@keyframes rt-aim-m12 { 0% { transform: rotate(0deg); } 50% { transform: rotate(-12deg); } 100% { transform: rotate(0deg); } }
+@keyframes rt-aim-p12 { 0% { transform: rotate(0deg); } 50% { transform: rotate(12deg); } 100% { transform: rotate(0deg); } }
+@keyframes rt-aim-m18 { 0% { transform: rotate(0deg); } 50% { transform: rotate(-18deg); } 100% { transform: rotate(0deg); } }
+@keyframes rt-aim-p18 { 0% { transform: rotate(0deg); } 50% { transform: rotate(18deg); } 100% { transform: rotate(0deg); } }
+@keyframes rt-aim-m24 { 0% { transform: rotate(0deg); } 50% { transform: rotate(-24deg); } 100% { transform: rotate(0deg); } }
+@keyframes rt-aim-p24 { 0% { transform: rotate(0deg); } 50% { transform: rotate(24deg); } 100% { transform: rotate(0deg); } }
+@keyframes rt-win { 0% { opacity: 1; } 99.9% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes rt-awaywin { 0% { opacity: 1; } 99.9% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes rt-rest { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rt-come { from { opacity: 0; transform: translate(-6px, -10px) scale(.85); } to { opacity: 1; transform: none; } }
+@keyframes rt-away { from { opacity: 1; transform: none; } to { opacity: 0; transform: translate(14px, -16px) scale(.8); } }
+@keyframes rt-held { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@keyframes rt-flap {
+	0% { transform: scaleY(1) skewX(0deg); animation-timing-function: cubic-bezier(.45, 0, .3, 1); }
+	55% { transform: scaleY(-.62) skewX(-8deg); animation-timing-function: cubic-bezier(.45, 0, .3, 1); }
+	100% { transform: scaleY(1) skewX(0deg); }
+}
+@keyframes rt-dash { to { stroke-dashoffset: -8; } }
+@keyframes rt-pulse { 0% { transform: scale(1); opacity: 0; } 50% { transform: scale(1.05); opacity: .85; } 100% { transform: scale(1); opacity: 0; } }
+@keyframes rt-shake {
+	0% { transform: translate(-5px, 0); }
+	25% { transform: translate(4px, 0); }
+	50% { transform: translate(-2px, 0); }
+	75% { transform: translate(1px, 0); }
+	100% { transform: translate(0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.rt-wing, .rt-flow, .rt-held { animation: none; }
+}
+
+/* Quantized durations and delays, 50 ms steps. */
+.d50 { animation-duration: 50ms; }
+.d100 { animation-duration: 100ms; }
+.d150 { animation-duration: 150ms; }
+.d200 { animation-duration: 200ms; }
+.d250 { animation-duration: 250ms; }
+.d300 { animation-duration: 300ms; }
+.d350 { animation-duration: 350ms; }
+.d400 { animation-duration: 400ms; }
+.d450 { animation-duration: 450ms; }
+.d500 { animation-duration: 500ms; }
+.d550 { animation-duration: 550ms; }
+.d600 { animation-duration: 600ms; }
+.d650 { animation-duration: 650ms; }
+.d700 { animation-duration: 700ms; }
+.d750 { animation-duration: 750ms; }
+.d800 { animation-duration: 800ms; }
+.d850 { animation-duration: 850ms; }
+.d900 { animation-duration: 900ms; }
+.d950 { animation-duration: 950ms; }
+.d1000 { animation-duration: 1000ms; }
+.d1050 { animation-duration: 1050ms; }
+.d1100 { animation-duration: 1100ms; }
+.d1150 { animation-duration: 1150ms; }
+.d1200 { animation-duration: 1200ms; }
+.d1250 { animation-duration: 1250ms; }
+.d1300 { animation-duration: 1300ms; }
+.d1350 { animation-duration: 1350ms; }
+.d1400 { animation-duration: 1400ms; }
+.d1450 { animation-duration: 1450ms; }
+.d1500 { animation-duration: 1500ms; }
+.d1550 { animation-duration: 1550ms; }
+.d1600 { animation-duration: 1600ms; }
+.d1650 { animation-duration: 1650ms; }
+.d1700 { animation-duration: 1700ms; }
+.d1750 { animation-duration: 1750ms; }
+.d1800 { animation-duration: 1800ms; }
+.d1850 { animation-duration: 1850ms; }
+.d1900 { animation-duration: 1900ms; }
+.d1950 { animation-duration: 1950ms; }
+.d2000 { animation-duration: 2000ms; }
+.d2050 { animation-duration: 2050ms; }
+.d2100 { animation-duration: 2100ms; }
+.d2150 { animation-duration: 2150ms; }
+.d2200 { animation-duration: 2200ms; }
+.d2250 { animation-duration: 2250ms; }
+.d2300 { animation-duration: 2300ms; }
+.d2350 { animation-duration: 2350ms; }
+.d2400 { animation-duration: 2400ms; }
+.d2450 { animation-duration: 2450ms; }
+.d2500 { animation-duration: 2500ms; }
+.d2550 { animation-duration: 2550ms; }
+.d2600 { animation-duration: 2600ms; }
+.d2650 { animation-duration: 2650ms; }
+.d2700 { animation-duration: 2700ms; }
+.d2750 { animation-duration: 2750ms; }
+.d2800 { animation-duration: 2800ms; }
+.d2850 { animation-duration: 2850ms; }
+.d2900 { animation-duration: 2900ms; }
+.d2950 { animation-duration: 2950ms; }
+.d3000 { animation-duration: 3000ms; }
+.s0 { animation-delay: 0ms; }
+.s50 { animation-delay: 50ms; }
+.s100 { animation-delay: 100ms; }
+.s150 { animation-delay: 150ms; }
+.s200 { animation-delay: 200ms; }
+.s250 { animation-delay: 250ms; }
+.s300 { animation-delay: 300ms; }
+.s350 { animation-delay: 350ms; }
+.s400 { animation-delay: 400ms; }
+.s450 { animation-delay: 450ms; }
+.s500 { animation-delay: 500ms; }
+.s550 { animation-delay: 550ms; }
+.s600 { animation-delay: 600ms; }
+.s650 { animation-delay: 650ms; }
+.s700 { animation-delay: 700ms; }
+.s750 { animation-delay: 750ms; }
+.s800 { animation-delay: 800ms; }
+.s850 { animation-delay: 850ms; }
+.s900 { animation-delay: 900ms; }
+.s950 { animation-delay: 950ms; }
+.s1000 { animation-delay: 1000ms; }
+.s1050 { animation-delay: 1050ms; }
+.s1100 { animation-delay: 1100ms; }
+.s1150 { animation-delay: 1150ms; }
+.s1200 { animation-delay: 1200ms; }
+.s1250 { animation-delay: 1250ms; }
+.s1300 { animation-delay: 1300ms; }
+.s1350 { animation-delay: 1350ms; }
+.s1400 { animation-delay: 1400ms; }
+.s1450 { animation-delay: 1450ms; }
+.s1500 { animation-delay: 1500ms; }
+.s1550 { animation-delay: 1550ms; }
+.s1600 { animation-delay: 1600ms; }
+.s1650 { animation-delay: 1650ms; }
+.s1700 { animation-delay: 1700ms; }
+.s1750 { animation-delay: 1750ms; }
+.s1800 { animation-delay: 1800ms; }
+.s1850 { animation-delay: 1850ms; }
+.s1900 { animation-delay: 1900ms; }
+.s1950 { animation-delay: 1950ms; }
+.s2000 { animation-delay: 2000ms; }
+.s2050 { animation-delay: 2050ms; }
+.s2100 { animation-delay: 2100ms; }
+.s2150 { animation-delay: 2150ms; }
+.s2200 { animation-delay: 2200ms; }
+.s2250 { animation-delay: 2250ms; }
+.s2300 { animation-delay: 2300ms; }
+.s2350 { animation-delay: 2350ms; }
+.s2400 { animation-delay: 2400ms; }
+.s2450 { animation-delay: 2450ms; }
+.s2500 { animation-delay: 2500ms; }
+.s2550 { animation-delay: 2550ms; }
+.s2600 { animation-delay: 2600ms; }
+.s2650 { animation-delay: 2650ms; }
+.s2700 { animation-delay: 2700ms; }
+.s2750 { animation-delay: 2750ms; }
+.s2800 { animation-delay: 2800ms; }
+.s2850 { animation-delay: 2850ms; }
+.s2900 { animation-delay: 2900ms; }
+.s2950 { animation-delay: 2950ms; }
+.s3000 { animation-delay: 3000ms; }
+.s3050 { animation-delay: 3050ms; }
+.s3100 { animation-delay: 3100ms; }
+.s3150 { animation-delay: 3150ms; }
+.s3200 { animation-delay: 3200ms; }
+.s3250 { animation-delay: 3250ms; }
+.s3300 { animation-delay: 3300ms; }
+.s3350 { animation-delay: 3350ms; }
+.s3400 { animation-delay: 3400ms; }
+.s3450 { animation-delay: 3450ms; }
+.s3500 { animation-delay: 3500ms; }
+.s3550 { animation-delay: 3550ms; }
+.s3600 { animation-delay: 3600ms; }
+.s3650 { animation-delay: 3650ms; }
+.s3700 { animation-delay: 3700ms; }
+.s3750 { animation-delay: 3750ms; }
+.s3800 { animation-delay: 3800ms; }
+.s3850 { animation-delay: 3850ms; }
+.s3900 { animation-delay: 3900ms; }
+.s3950 { animation-delay: 3950ms; }
+.s4000 { animation-delay: 4000ms; }
+.s4050 { animation-delay: 4050ms; }
+.s4100 { animation-delay: 4100ms; }
+.s4150 { animation-delay: 4150ms; }
+.s4200 { animation-delay: 4200ms; }
+.s4250 { animation-delay: 4250ms; }
+.s4300 { animation-delay: 4300ms; }
+.s4350 { animation-delay: 4350ms; }
+.s4400 { animation-delay: 4400ms; }
+.s4450 { animation-delay: 4450ms; }
+.s4500 { animation-delay: 4500ms; }
+.s4550 { animation-delay: 4550ms; }
+.s4600 { animation-delay: 4600ms; }
+.s4650 { animation-delay: 4650ms; }
+.s4700 { animation-delay: 4700ms; }
+.s4750 { animation-delay: 4750ms; }
+.s4800 { animation-delay: 4800ms; }
+.s4850 { animation-delay: 4850ms; }
+.s4900 { animation-delay: 4900ms; }
+.s4950 { animation-delay: 4950ms; }
+.s5000 { animation-delay: 5000ms; }
+.s5050 { animation-delay: 5050ms; }
+.s5100 { animation-delay: 5100ms; }
+.s5150 { animation-delay: 5150ms; }
+.s5200 { animation-delay: 5200ms; }
+.s5250 { animation-delay: 5250ms; }
+.s5300 { animation-delay: 5300ms; }
+.s5350 { animation-delay: 5350ms; }
+.s5400 { animation-delay: 5400ms; }
+.s5450 { animation-delay: 5450ms; }
+.s5500 { animation-delay: 5500ms; }
+.s5550 { animation-delay: 5550ms; }
+.s5600 { animation-delay: 5600ms; }
+.s5650 { animation-delay: 5650ms; }
+.s5700 { animation-delay: 5700ms; }
+.s5750 { animation-delay: 5750ms; }
+.s5800 { animation-delay: 5800ms; }
+.s5850 { animation-delay: 5850ms; }
+.s5900 { animation-delay: 5900ms; }
+.s5950 { animation-delay: 5950ms; }
+.s6000 { animation-delay: 6000ms; }
